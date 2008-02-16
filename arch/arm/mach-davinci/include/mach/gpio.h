@@ -147,13 +147,15 @@ static inline int gpio_cansleep(unsigned gpio)
 
 static inline int gpio_to_irq(unsigned gpio)
 {
-	return __gpio_to_irq(gpio);
+	if (gpio >= DAVINCI_N_GPIO)
+		return -EINVAL;
+	return IRQ_GPIO(gpio);
 }
 
 static inline int irq_to_gpio(unsigned irq)
 {
-	/* don't support the reverse mapping */
-	return -ENOSYS;
+	/* caller guarantees gpio_to_irq() succeeded */
+	return IRQ_TO_GPIO(irq);
 }
 
 #endif				/* __DAVINCI_GPIO_H */

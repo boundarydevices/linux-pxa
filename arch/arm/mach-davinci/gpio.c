@@ -300,20 +300,8 @@ static int gpio_irq_type_unbanked(unsigned irq, unsigned trigger)
 
 static int __init davinci_gpio_irq_setup(void)
 {
-	unsigned	gpio, irq, bank;
 	struct clk	*clk;
-	u32		binten = 0;
-	unsigned	ngpio, bank_irq;
-	struct davinci_soc_info *soc_info = &davinci_soc_info;
-	struct gpio_controller	*__iomem g;
 
-	ngpio = soc_info->gpio_num;
-
-	bank_irq = soc_info->gpio_irq;
-	if (bank_irq == 0) {
-		printk(KERN_ERR "Don't know first GPIO bank IRQ.\n");
-		return -EINVAL;
-	}
 
 	clk = clk_get(NULL, "gpio");
 	if (IS_ERR(clk)) {
@@ -322,90 +310,6 @@ static int __init davinci_gpio_irq_setup(void)
 		return PTR_ERR(clk);
 	}
 	clk_enable(clk);
-
-	/* Arrange gpio_to_irq() support, handling either direct IRQs or
-	 * banked IRQs.  Having GPIOs in the first GPIO bank use direct
-	 * IRQs, while the others use banked IRQs, would need some setup
-	 * tweaks to recognize hardware which can do that.
-	 */
-	for (gpio = 0, bank = 0; gpio < ngpio; bank++, gpio += 32) {
-		chips[bank].chip.to_irq = gpio_to_irq_banked;
-		chips[bank].irq_base = soc_info->gpio_unbanked
-			? -EINVAL
-			: (soc_info->intc_irq_num + gpio);
-	}
-
-	/*
-	 * AINTC can handle direct/unbanked IRQs for GPIOs, with the GPIO
-	 * controller only handling trigger modes.  We currently assume no
-	 * IRQ mux conflicts; gpio_irq_type_unbanked() is only for GPIOs.
-	 */
-	if (soc_info->gpio_unbanked) {
-		static struct irq_chip gpio_irqchip_unbanked;
-
-		/* pass "bank 0" GPIO IRQs to AINTC */
-		chips[0].chip.to_irq = gpio_to_irq_unbanked;
-		binten = BIT(0);
-
-		/* AINTC handles mask/unmask; GPIO handles triggering */
-		irq = bank_irq;
-		gpio_irqchip_unbanked = *get_irq_desc_chip(irq_to_desc(irq));
-		gpio_irqchip_unbanked.name = "GPIO-AINTC";
-		gpio_irqchip_unbanked.set_type = gpio_irq_type_unbanked;
-
-		/* default trigger: both edges */
-		g = gpio2controller(0);
-		__raw_writel(~0, &g->set_falling);
-		__raw_writel(~0, &g->set_rising);
-
-		/* set the direct IRQs up to use that irqchip */
-		for (gpio = 0; gpio < soc_info->gpio_unbanked; gpio++, irq++) {
-			set_irq_chip(irq, &gpio_irqchip_unbanked);
-			set_irq_data(irq, (void *) __gpio_mask(gpio));
-			set_irq_chip_data(irq, g);
-			irq_desc[irq].status |= IRQ_TYPE_EDGE_BOTH;
-		}
-
-		goto done;
-	}
-
-	/*
-	 * Or, AINTC can handle IRQs for banks of 16 GPIO IRQs, which we
-	 * then chain through our own handler.
-	 */
-	for (gpio = 0, irq = gpio_to_irq(0), bank = 0;
-			gpio < ngpio;
-			bank++, bank_irq++) {
-		unsigned		i;
-
-		/* disabled by default, enabled only as needed */
-		g = gpio2controller(gpio);
-		__raw_writel(~0, &g->clr_falling);
-		__raw_writel(~0, &g->clr_rising);
-
-		/* set up all irqs in this bank */
-		set_irq_chained_handler(bank_irq, gpio_irq_handler);
-		set_irq_chip_data(bank_irq, g);
-		set_irq_data(bank_irq, (void *)irq);
-
-		for (i = 0; i < 16 && gpio < ngpio; i++, irq++, gpio++) {
-			set_irq_chip(irq, &gpio_irqchip);
-			set_irq_chip_data(irq, g);
-			set_irq_data(irq, (void *) __gpio_mask(gpio));
-			set_irq_handler(irq, handle_simple_irq);
-			set_irq_flags(irq, IRQF_VALID);
-		}
-
-		binten |= BIT(bank);
-	}
-
-done:
-	/* BINTEN -- per-bank interrupt enable. genirq would also let these
-	 * bits be set/cleared dynamically.
-	 */
-	__raw_writel(binten, soc_info->gpio_base + 0x08);
-
-	printk(KERN_INFO "DaVinci: %d gpio irqs\n", irq - gpio_to_irq(0));
 
 	return 0;
 }
