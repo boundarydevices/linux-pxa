@@ -150,6 +150,54 @@ config ATMEL_SSC
 
 	  If unsure, say N.
 
+config INTEL_MENLOW
+	tristate "Thermal Management driver for Intel menlow platform"
+	depends on ACPI_THERMAL
+	select THERMAL
+	depends on X86
+	---help---
+	  ACPI thermal management enhancement driver on
+	  Intel Menlow platform.
+
+	  If unsure, say N.
+
+config EEEPC_LAPTOP
+	tristate "Eee PC Hotkey Driver (EXPERIMENTAL)"
+	depends on X86
+	depends on ACPI
+	depends on BACKLIGHT_CLASS_DEVICE
+	depends on HWMON
+	depends on EXPERIMENTAL
+	depends on RFKILL
+	---help---
+	  This driver supports the Fn-Fx keys on Eee PC laptops.
+	  It also adds the ability to switch camera/wlan on/off.
+
+config DAV_DMA
+	tristate "Device driver DaVinci DMA"
+	depends on ARCH_DAVINCI
+	default n
+	help
+	  This option enables the use of the DaVinci EDMA engine by applications.
+	  It is typically used for bit-blts of images to and from the frame-buffer.
+
+config BD_GENTIMER
+	tristate "Boundary Devices Generic timer support"
+
+config OMAP_STI
+	bool "Serial Trace Interface support"
+	depends on ARCH_OMAP16XX || ARCH_OMAP24XX || ARCH_OMAP34XX
+	default n
+	help
+	  Serial Trace Interface. The protocols suported for OMAP1/2/3 are
+	  STI/CSTI/XTIv2 correspondingly.
+
+config OMAP_STI_CONSOLE
+	bool "STI console support"
+	depends on OMAP_STI
+	help
+	  This enables a console driver by way of STI/XTI.
+
 config ENCLOSURE_SERVICES
 	tristate "Enclosure Services"
 	default n

@@ -22,4 +22,6 @@ obj-$(CONFIG_ISL29003)		+= isl29003.o
 obj-$(CONFIG_EP93XX_PWM)	+= ep93xx_pwm.o
 obj-$(CONFIG_C2PORT)		+= c2port/
 obj-y				+= eeprom/
+obj-$(CONFIG_DAV_DMA)		+= ffit.o dav-dma.o
+obj-$(CONFIG_BD_GENTIMER)	+= gen-timer.o
 obj-y				+= cb710/
