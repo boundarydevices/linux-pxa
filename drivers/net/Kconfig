@@ -921,6 +921,8 @@ config NET_NETX
 config TI_DAVINCI_EMAC
 	tristate "TI DaVinci EMAC Support"
 	depends on ARM && ARCH_DAVINCI
+        default y if ARCH_DAVINCI
+	select MII
 	select PHYLIB
 	help
 	  This driver supports TI's DaVinci Ethernet .
