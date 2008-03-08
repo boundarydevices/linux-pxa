@@ -121,9 +121,13 @@ static int dav_dma_release(struct inode *i, struct file *f)
 			    ||
 			    ( &node->node_ == node->node_.prev )
 			    ||
-			    ( 0 != ((unsigned long)node->node_.next & 15 ) )
+			    ( ( node->node_.next != allocs ) 
+                              &&
+                              ( 0 != ((unsigned long)node->node_.next & 15 ) ) )
 			    ||
-			    ( 0 != ((unsigned long)node->node_.prev & 15 ) ) ) {
+			    ( ( node->node_.prev != allocs ) 
+                              &&
+			      ( 0 != ((unsigned long)node->node_.prev & 15 ) ) ) ){
 				printk( KERN_ERR "Invalid memory node %p/%p/%p/%lu/%lu\n", 
 					node, 
 					node ? node->node_.next : 0,
@@ -224,9 +228,13 @@ static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsi
 			    ||
 			    ( &mem->node_ == mem->node_.prev )
 			    ||
-			    ( 0 != ((unsigned long)mem->node_.next & 15 ) )
+                            ( ( mem->node_.next != f->private_data )
+                              &&
+                              ( 0 != ((unsigned long)mem->node_.next & 15 ) ) )
 			    ||
-			    ( 0 != ((unsigned long)mem->node_.prev & 15 ) ) ) {
+                            ( ( mem->node_.prev != f->private_data )
+                              &&
+			      ( 0 != ((unsigned long)mem->node_.prev & 15 ) ) ) ){
 				printk( KERN_ERR "free invalid ptr: %p/%p/%p\n", 
 					&mem->node_,
 					mem->node_.next,
