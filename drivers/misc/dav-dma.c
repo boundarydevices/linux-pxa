@@ -412,7 +412,7 @@ static int dav_dma_init(void)
 	dav_dma_setup_cdev(&dav_dma_dev);
 	dav_dma_class = class_create(THIS_MODULE, dav_dma_name);
 	device_create(dav_dma_class, NULL,
-			MKDEV(dav_dma_major, dav_dma_minor), "dav-dma-%d", 0);
+			MKDEV(dav_dma_major, dav_dma_minor), NULL, "dav-dma-%d", 0);
 
 	return result ;
 }
