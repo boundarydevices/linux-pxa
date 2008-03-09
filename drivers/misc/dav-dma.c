@@ -45,12 +45,14 @@ static char dav_dma_name[] = {
 };
 static struct dav_dma_dev_t dav_dma_dev ;
 static struct class *dav_dma_class;
-static DECLARE_WAIT_QUEUE_HEAD(dma_wait);
 static unsigned pool_size = 0 ;
 static void *pool_data ;
 static dma_addr_t pool_phys ;
 static list_header_t *mem_pool ;
 static DECLARE_MUTEX(pool_lock);
+static int dmach = -1 ;
+static int tcc=TCC_ANY ;
+static struct completion dma_completion ;
 
 typedef struct {
 	struct list_head node_ ;
@@ -155,7 +157,7 @@ static int dav_dma_release(struct inode *i, struct file *f)
 static void dav_dma_callback(int lch, unsigned short ch_status, void *data)
 {
 	DEBUGMSG( "%s: %u\n", __FUNCTION__, ch_status );
-	wake_up_interruptible(&dma_wait);
+        complete(&dma_completion);
 }
 
 static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsigned long param)
@@ -251,40 +253,19 @@ static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsi
 		case DAV_DMA_DODMA: {
 			edmacc_paramentry_regs regs ;
 			int rval ;
-			int dmach, tcc=0 ;
 			if( copy_from_user( &regs, (void *)param, sizeof(regs) ) ){
 				printk( KERN_ERR "%s: Invalid user ptr\n", __FUNCTION__ );
 				return -EFAULT ;
 			}
-			DEBUGMSG( "%s: DODMA %p\n", __FUNCTION__, (void *)param );
-			DEBUGMSG( "opt\t\t%8x\n", regs.opt );
-			DEBUGMSG( "src\t\t%8x\n", regs.src );
-			DEBUGMSG( "a_b_cnt\t\t%8x\n", regs.a_b_cnt );
-			DEBUGMSG( "dst\t\t%8x\n", regs.dst );
-			DEBUGMSG( "src_dst_bidx\t\t%8x\n", regs.src_dst_bidx );
-			DEBUGMSG( "link_bcntrld\t\t%8x\n", regs.link_bcntrld );
-			DEBUGMSG( "src_dst_cidx\t\t%8x\n", regs.src_dst_cidx );
-			DEBUGMSG( "ccnt\t\t%8x\n", regs.ccnt );
-			if( 0 != ( rval = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, f, &dmach, &tcc, EVENTQ_DEFAULT)) ){
-				printk( KERN_ERR "%s: error %d requesting DMA\n", __FUNCTION__, rval );
-				return -EFAULT ;
-			}
-
-			DEBUGMSG( "%s: allocated dma channel %d\n", __FUNCTION__, dmach );
+                        regs.opt = (regs.opt & ~TCC)|tcc ;
 			davinci_set_dma_params(dmach, &regs);
-			{
-                                DEFINE_WAIT(wait);
-				prepare_to_wait(&dma_wait,&wait,TASK_INTERRUPTIBLE);
-				
-				rval = davinci_start_dma(dmach);
-				DEBUGMSG( "%s: dma %d\n", __FUNCTION__, rval );
 
-				schedule();
+			rval = davinci_start_dma(dmach);
+			DEBUGMSG( "%s: dma %d\n", __FUNCTION__, rval );
 
-				finish_wait(&dma_wait,&wait);
-			} // limit scope of wait
-
-			davinci_free_dma(dmach);
+			if( !wait_for_completion_interruptible_timeout(&dma_completion, 100 ) ){
+	                	printk( KERN_ERR "%s: timeout\n", __FUNCTION__ );
+			}
 
 			return rval ;
 		}
@@ -403,6 +384,13 @@ static int dav_dma_init(void)
 		if( pool_data ){
 			mem_pool = init_memory_pool(pool_size, pool_data);
 			printk( KERN_ERR "memory pool header at %p\n", mem_pool );
+			if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_DEFAULT)) ){
+				printk( KERN_ERR "%s: DMA channel %d, tcc %d\n", __FUNCTION__, dmach, tcc );
+                                tcc <<= 12 ;
+                                init_completion(&dma_completion);
+                        } else {
+				printk( KERN_ERR "%s: error %d requesting DMA\n", __FUNCTION__, result );
+			}
 		}
 		else
 			printk( KERN_ERR "Error allocating pool of 0x%x bytes\n", pool_size );
@@ -425,6 +413,11 @@ static void dav_dma_exit(void)
 //		free_pages( (unsigned long)pool_data, get_order(pool_size) );
                 dma_free_coherent(NULL, pool_size, (void *)pool_data, pool_phys );
 	}
+        if( 0 <= dmach ){
+           davinci_free_dma(dmach);
+           printk( KERN_ERR "%s: free dma channel %d\n", __FUNCTION__, dmach );
+           dmach = -1 ;
+        }
         class_device_destroy(dav_dma_class,MKDEV(dav_dma_major, dav_dma_minor));
         class_destroy(dav_dma_class);
 	cdev_del(&dav_dma_dev.cdev);
