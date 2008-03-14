@@ -210,7 +210,7 @@ static struct aic23_local_info {
 	u8 treble;
 	u16 input_volume_reg;
 	int mod_cnt;
-} aic23_local;
+} aic23_local = { 0 };
 
 extern struct clk *davinci_mcbsp_get_clock(void);
 
@@ -288,11 +288,11 @@ static void ram_to_iram_irq_handler(int sound_curr_lch, u16 ch_status, void *dat
 }
 
 inline unsigned outvolume_to_regval( unsigned vol ){
-    return ((vol * OUTPUT_VOLUME_RANGE) / 101) + OUTPUT_VOLUME_MIN;
+    return ((vol * OUTPUT_VOLUME_RANGE) / 100) + OUTPUT_VOLUME_MIN;
 }
 
 inline unsigned regval_to_outvolume( unsigned regval ){
-    return ((regval * 101)/OUTPUT_VOLUME_RANGE);
+    return ((regval * 100)/OUTPUT_VOLUME_RANGE);
 }
 
 extern int spi_tlv320aic23_write_value(u8 reg, u16 value);
@@ -325,17 +325,17 @@ static int aic23_update(int flag, int val)
 		// Convert 0 -> 100 volume to 0x00 (LHV_MIN) -> 0x7f (LHV_MAX) 
 		// volume range
 		volume = outvolume_to_regval(val);
-		
+
 		// R/LHV[6:0] 1111111 (+6dB) to 0000000 (-73dB) in 1db steps,
 		// default 1111001 (0dB)
 		aic23_local.volume_reg &= ~OUTPUT_VOLUME_MASK;
 		aic23_local.volume_reg |= volume;
-                aic23_local.volume = volume ;
+                aic23_local.volume = val ;
 		audio_aic23_write(LEFT_CHANNEL_VOLUME_ADDR, aic23_local.volume_reg);
 		audio_aic23_write(RIGHT_CHANNEL_VOLUME_ADDR, aic23_local.volume_reg);
 //		audio_aic23_write(LEFT_CHANNEL_VOLUME_ADDR, 0);
 //		audio_aic23_write(RIGHT_CHANNEL_VOLUME_ADDR, 0);
-		printk( KERN_DEBUG "Set Volume %d, reg=%x\n",val,aic23_local.volume_reg);
+		printk( KERN_DEBUG "Set Volume %d/%d, reg=%x\n",val,volume,aic23_local.volume_reg&OUTPUT_VOLUME_MASK);
 		break;
 
 	case SET_LINE:
@@ -463,7 +463,7 @@ static int volume_get
      struct snd_ctl_elem_value *ucontrol)
 {
 	printk( KERN_DEBUG "%s: get volume\n", __FUNCTION__ );
-	ucontrol->value.integer.value[0] = regval_to_outvolume( aic23_local.volume_reg );
+	ucontrol->value.integer.value[0] = regval_to_outvolume( aic23_local.volume_reg & OUTPUT_VOLUME_MASK );
 	return 0;
 }
 
