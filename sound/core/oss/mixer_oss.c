@@ -287,6 +287,11 @@ static int snd_mixer_oss_set_volume(struct snd_mixer_oss_file *fmixer,
 		right = left;
 	if (pslot->put_volume)
 		result = pslot->put_volume(fmixer, pslot, left, right);
+	else if(mixer->slots[SOUND_MIXER_PCM].put_volume)
+	{
+		pslot = mixer->slots + SOUND_MIXER_PCM ;
+		result = pslot->put_volume(fmixer, pslot, left, right);
+	}
 	if (result < 0)
 		return result;
 	pslot->volume[0] = left;
