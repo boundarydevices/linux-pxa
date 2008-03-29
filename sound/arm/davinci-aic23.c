@@ -545,7 +545,7 @@ davinci_request_sound_dma
 	}
 
         *ram_to_iram_tcc = TCC_ANY ;
-        err = davinci_request_dma( DAVINCI_DMA_CHANNEL_ANY, device_name, ram_to_iram_irq_handler, data, ram_to_iram_channel, ram_to_iram_tcc, EVENTQ_0);
+        err = davinci_request_dma( DAVINCI_DMA_CHANNEL_ANY, device_name, ram_to_iram_irq_handler, data, ram_to_iram_channel, ram_to_iram_tcc, EVENTQ_1);
         if( err ){
            int j;
            for (j = 0; j < i; j++)
