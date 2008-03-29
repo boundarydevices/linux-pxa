@@ -40,6 +40,10 @@
 #define MCBSP_DXR   0x01E02004
 #define MCBSP_DRR   0x01E02000
 
+#define MUTE_GPIO 7
+#define MUTED 0
+#define NOTMUTED 1
+
 #define NUM_DMA_CHANNELS 4
 
 #define IRAM_RESERVED 32
@@ -126,6 +130,7 @@ static const struct snd_pcm_hardware davinci_pcm_hardware = {
 #define ADC_OFF				0x0004
 #define MIC_OFF				0x0002
 #define LINE_OFF			0x0001
+#define NOTHING_POWERED_ON		0x000F
 
 // Digital audio interface register
 #define MS_MASTER			0x0040
@@ -609,8 +614,8 @@ inline void aic23_configure(void)
 	/* Digital audio path control, de-emphasis control 44.1kHz */
 	audio_aic23_write(DIGITAL_AUDIO_CONTROL_ADDR, DEEMP_44K);
 
-	/* Power control, everything is on */
-	audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 0);
+	/* Power control, nothing is on */
+	audio_aic23_write(POWER_DOWN_CONTROL_ADDR, NOTHING_POWERED_ON);
 
 	/* Digital audio interface, master/slave mode, I2S, 16 bit */
 	audio_aic23_write(DIGITAL_AUDIO_FORMAT_ADDR, MS_MASTER | IWL_16 | FOR_DSP);
@@ -740,6 +745,9 @@ static int davinci_pcm_close(struct snd_pcm_substream *substream)
    printk( KERN_ERR "%s\n", __FUNCTION__ );
    private_free(substream->runtime);
    if( buf->area ){
+	gpio_direction_output(MUTE_GPIO,MUTED);
+	audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 
+			  spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)|DAC_OFF);
 	dma_free_writecombine(buf->dev.dev, buf->bytes, buf->area, buf->addr);
 	if( substream->private_data ){
 		struct snd_dma_buffer *iram = substream->private_data ;
@@ -823,6 +831,10 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			// do something to start the PCM engine
 			if(data){
 				edmacc_paramentry_regs regs ;
+                                gpio_direction_output(MUTE_GPIO,NOTMUTED);
+				audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 
+						  spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)
+						  & ~DAC_OFF);
                                 data->cur_dma = 0 ;
 				davinci_get_dma_params(data->channels[0], &regs);
 				davinci_set_dma_params(data->master_chan, &regs);
@@ -835,6 +847,9 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		case SNDRV_PCM_TRIGGER_STOP: {
 			// do something to stop the PCM engine
 			if(data){
+                                gpio_direction_output(MUTE_GPIO,MUTED);
+				audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 
+						  spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)|DAC_OFF);
 				davinci_mcbsp_stop(DAVINCI_MCBSP1);
 				davinci_stop_dma(data->master_chan);
                         }
@@ -1036,6 +1051,8 @@ static int __devinit davinci_aic23probe(struct platform_device *dev)
 			procentry->write_proc = aic23_proc_write ;
 		}
 
+		audio_aic23_write(POWER_DOWN_CONTROL_ADDR, spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)|DAC_OFF);
+		gpio_direction_output(MUTE_GPIO,MUTED);
 		platform_set_drvdata(dev, card);
 		return 0;
 	}
