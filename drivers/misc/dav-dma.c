@@ -384,7 +384,7 @@ static int dav_dma_init(void)
 		if( pool_data ){
 			mem_pool = init_memory_pool(pool_size, pool_data);
 			printk( KERN_ERR "memory pool header at %p\n", mem_pool );
-			if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_DEFAULT)) ){
+			if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_1)) ){
 				printk( KERN_ERR "%s: DMA channel %d, tcc %d\n", __FUNCTION__, dmach, tcc );
                                 tcc <<= 12 ;
                                 init_completion(&dma_completion);
