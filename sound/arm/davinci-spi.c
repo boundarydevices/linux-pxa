@@ -81,6 +81,8 @@ struct spiRegs {					/* 0x01c66800*/
 	volatile u32 intVect1;			/* 0x64 */
 };
 
+static u16 regvalues[16] = {0};
+
 struct spi_davinci_device {
         int cmd_complete;
         wait_queue_head_t cmd_wait;
@@ -103,8 +105,14 @@ int spi_tlv320aic23_write_value(u8 reg, u16 value)
 	DPRINTK("spi reg:%x = %x\n",reg,value);
 	pDev->cmd_complete = 0;
 	pSpi->dat1 = (2<<16)|((reg&0x7f)<<9)|(value&0x1ff);
+        regvalues[reg&0x0f] = value ;
 	up(&pDev->write_lock);
 	return 0;
+}
+
+u16 spi_tlv320aic23_read_value(u8 reg)
+{
+	return regvalues[reg&0x0f];
 }
 
 #define SPI_CLK_DIVISOR 32
