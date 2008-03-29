@@ -18,6 +18,7 @@
 #include <linux/wait.h>
 #include <linux/delay.h>
 #include <linux/dma-mapping.h>
+#include <linux/proc_fs.h>
 
 #include <sound/driver.h>
 #include <sound/core.h>
@@ -86,6 +87,7 @@ static const struct snd_pcm_hardware davinci_pcm_hardware = {
 #define SAMPLE_RATE_CONTROL_ADDR	0x08
 #define DIGITAL_INTERFACE_ACT_ADDR	0x09
 #define RESET_CONTROL_ADDR		0x0F
+#define NUM_AIC23_REGS			(RESET_CONTROL_ADDR+1)
 
 // Left (right) line input volume control register
 #define LRS_ENABLED			0x0100
@@ -212,6 +214,11 @@ static struct aic23_local_info {
 	int mod_cnt;
 } aic23_local = { 0 };
 
+static struct proc_dir_entry *procentry = 0 ;
+static char const procentryname[] = {
+   "aic23"
+};
+
 extern struct clk *davinci_mcbsp_get_clock(void);
 
 static long audio_samplerate = AUDIO_RATE_DEFAULT;
@@ -296,6 +303,7 @@ inline unsigned regval_to_outvolume( unsigned regval ){
 }
 
 extern int spi_tlv320aic23_write_value(u8 reg, u16 value);
+extern u16 spi_tlv320aic23_read_value(u8 reg);
 extern int spi_tlv320aic23_init(void);
 extern void spi_tlv320aic23_shutdown(void);
 
@@ -913,6 +921,46 @@ static struct snd_pcm_ops davinci_pcm_ops = {
 	.pointer	= davinci_pcm_pointer,
 };
 
+static int aic23_proc_read(char *page, char **start, off_t off, int count, int *eof, void *data)
+{
+	int i ;
+	char *firstOut = page ;
+	for( i = 0 ; (i < NUM_AIC23_REGS) && (count > 1); i++ ){
+		int n = snprintf( page, count-1, "%02x\t%04x\n", i, spi_tlv320aic23_read_value(i));
+		page += n ;
+		count -= n ;
+	}
+        *eof = 1;
+	return page-firstOut ;
+}
+
+static int 
+aic23_proc_write( struct file *file, 
+		  const char __user *buffer,
+                  unsigned long count, 
+		  void *data)
+{
+	char inbuf[80];
+	if( count >= sizeof(inbuf))
+		count = sizeof(inbuf)-1 ;
+	if(0==copy_from_user(inbuf,buffer,count)){
+		unsigned reg, value ;
+		inbuf[sizeof(inbuf)-1] = '\0' ;
+		if( (2 == sscanf(inbuf,"%u %u\n", &reg, &value ))
+		    &&
+		    (NUM_AIC23_REGS > reg) ) {
+			printk( KERN_ERR "%s: set reg 0x%x to 0x%x here\n", 
+				__FUNCTION__, reg, value );
+                        spi_tlv320aic23_write_value(reg,value);
+			return count ;
+		}
+		else
+			return -EINVAL ;
+	}
+	else
+		return -EFAULT ;
+}
+
 static int __devinit davinci_aic23probe(struct platform_device *dev)
 {
 	struct snd_card *card;
@@ -981,6 +1029,12 @@ static int __devinit davinci_aic23probe(struct platform_device *dev)
                    printk( KERN_ERR "%s:control %p (count %u) info %p\n", __FUNCTION__, kctl, kctl->count, kctl->info );
                    printk( KERN_ERR "%s:name %s, numid %d, dev %d.%d\n", __FUNCTION__, kctl->id.name, kctl->id.numid, kctl->id.device, kctl->id.subdevice );
                 }
+
+		procentry = create_proc_entry(procentryname, 0, NULL);
+		if( procentry ){
+			procentry->read_proc = aic23_proc_read ;
+			procentry->write_proc = aic23_proc_write ;
+		}
 
 		platform_set_drvdata(dev, card);
 		return 0;
