@@ -130,7 +130,7 @@ static const struct snd_pcm_hardware davinci_pcm_hardware = {
 #define ADC_OFF				0x0004
 #define MIC_OFF				0x0002
 #define LINE_OFF			0x0001
-#define NOTHING_POWERED_ON		0x000F
+#define NOTHING_POWERED_ON		0x004F
 
 // Digital audio interface register
 #define MS_MASTER			0x0040
@@ -317,6 +317,18 @@ static __inline__ void audio_aic23_write(u8 address, u16 data)
 {
 	if (spi_tlv320aic23_write_value(address, data) < 0)
 		printk(KERN_INFO "aic23 write failed for reg = %d\n", address);
+}
+
+static void audio_aic23_clearbits(u8 address, u16 data)
+{
+	int oldval = spi_tlv320aic23_read_value(address);
+	audio_aic23_write(address, oldval & ~(data) );
+}
+
+static void audio_aic23_setbits(u8 address, u16 data)
+{
+	int oldval = spi_tlv320aic23_read_value(address);
+	audio_aic23_write(address, oldval | data );
 }
 
 static int aic23_update(int flag, int val)
@@ -590,6 +602,22 @@ static int davinci_free_sound_dma(int master_ch, int *channels, int iram_channel
 	return 0;
 }
 
+static void mute(void)
+{
+	if( 0 == (spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)&DAC_OFF) ){
+//		audio_aic23_setbits(DIGITAL_AUDIO_CONTROL_ADDR, DACM_MUTE);
+		audio_aic23_setbits(POWER_DOWN_CONTROL_ADDR, DAC_OFF);
+		gpio_direction_output(MUTE_GPIO,MUTED);
+	}
+}
+
+static void unmute(void)
+{
+	gpio_direction_output(MUTE_GPIO,NOTMUTED);
+	audio_aic23_clearbits(POWER_DOWN_CONTROL_ADDR, DAC_OFF);
+	audio_aic23_clearbits(DIGITAL_AUDIO_CONTROL_ADDR, DACM_MUTE);
+}
+
 inline void aic23_configure(void)
 {
 	/* Reset codec */
@@ -612,7 +640,7 @@ inline void aic23_configure(void)
 	audio_aic23_write(ANALOG_AUDIO_CONTROL_ADDR, DAC_SELECTED | INSEL_MIC);	// | MICB_20DB | BYPASS_ON
 
 	/* Digital audio path control, de-emphasis control 44.1kHz */
-	audio_aic23_write(DIGITAL_AUDIO_CONTROL_ADDR, DEEMP_44K);
+	audio_aic23_write(DIGITAL_AUDIO_CONTROL_ADDR, DEEMP_44K|DACM_MUTE);
 
 	/* Power control, nothing is on */
 	audio_aic23_write(POWER_DOWN_CONTROL_ADDR, NOTHING_POWERED_ON);
@@ -742,12 +770,9 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 static int davinci_pcm_close(struct snd_pcm_substream *substream)
 {
    struct snd_dma_buffer *buf = &substream->dma_buffer ;
-   printk( KERN_ERR "%s\n", __FUNCTION__ );
    private_free(substream->runtime);
    if( buf->area ){
-	gpio_direction_output(MUTE_GPIO,MUTED);
-	audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 
-			  spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)|DAC_OFF);
+	mute();
 	dma_free_writecombine(buf->dev.dev, buf->bytes, buf->area, buf->addr);
 	if( substream->private_data ){
 		struct snd_dma_buffer *iram = substream->private_data ;
@@ -762,8 +787,6 @@ static int davinci_pcm_close(struct snd_pcm_substream *substream)
 
 static void audio_set_dma_params_play(int channel, dma_addr_t dma_ptr, u_int dma_size)
 {
-	printk( KERN_ERR "%s:channel = %d dma_ptr = %x dma_size=%x\n", __FUNCTION__, channel, dma_ptr, dma_size);
-
 	davinci_set_dma_src_params(channel, (unsigned long)(dma_ptr), 0, 0);
 	davinci_set_dma_dest_params(channel, (unsigned long)MCBSP_DXR, 0, 0);
 	davinci_set_dma_src_index(channel, 2, 0);
@@ -781,12 +804,6 @@ static int davinci_pcm_hw_params(struct snd_pcm_substream *substream,
    dma_addr_t addr ;
    int i ;
 
-   printk( KERN_ERR "%s: totalsize %u, periodsize %u, %u periods\n"
-           , __FUNCTION__ 
-           , params_buffer_bytes(params)
-           , periodBytes
-           , params_periods(params)
-           );
    BUG_ON(0==buf);
    BUG_ON(0==runtime);
    BUG_ON(0==data);
@@ -796,11 +813,9 @@ static int davinci_pcm_hw_params(struct snd_pcm_substream *substream,
    addr = iram->addr ;
 }
    for( i = 0 ; i < NUM_DMA_CHANNELS ; i++ ){
-printk( KERN_ERR "DMA param[%u] = %p\n", i, (void *)addr );
       audio_set_dma_params_play(data->channels[i], addr, periodBytes );
       addr += periodBytes ;
    }
-printk( KERN_ERR "big dma buffer at %p (0x%x, %u bytes)\n", substream->dma_buffer.area, substream->dma_buffer.addr,  substream->dma_buffer.bytes );
    snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
    davinci_mcbsp_config(DAVINCI_MCBSP1, &initial_config);
    aic23_configure();
@@ -809,47 +824,33 @@ printk( KERN_ERR "big dma buffer at %p (0x%x, %u bytes)\n", substream->dma_buffe
 
 static int davinci_pcm_hw_free(struct snd_pcm_substream *substream)
 {
-   printk( KERN_ERR "%s\n", __FUNCTION__ );
    snd_pcm_set_runtime_buffer(substream, 0);
    return 0 ;
 }
-
-static char const * const triggerNames[] = {
-   "STOP"
-,  "START"
-};
 
 static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
         struct dma_playback_info *data = (runtime) ? runtime->private_data : 0 ;
    
-	printk( KERN_ERR "%s, cmd %d (%s)\n", __FUNCTION__, cmd, triggerNames[cmd&1] );
-
 	switch (cmd) {
 		case SNDRV_PCM_TRIGGER_START: {
 			// do something to start the PCM engine
 			if(data){
 				edmacc_paramentry_regs regs ;
-                                gpio_direction_output(MUTE_GPIO,NOTMUTED);
-				audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 
-						  spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)
-						  & ~DAC_OFF);
+				unmute();
                                 data->cur_dma = 0 ;
 				davinci_get_dma_params(data->channels[0], &regs);
 				davinci_set_dma_params(data->master_chan, &regs);
 				davinci_start_dma(data->master_chan);
                                 davinci_mcbsp_start(DAVINCI_MCBSP1);
-//                                printk( KERN_ERR "%s: master channel %u, slave %u, opt == 0x%08x\n", __FUNCTION__, data->master_chan, data->channels[0], regs.opt );
                         }
 			break;
    		}
 		case SNDRV_PCM_TRIGGER_STOP: {
 			// do something to stop the PCM engine
 			if(data){
-                                gpio_direction_output(MUTE_GPIO,MUTED);
-				audio_aic23_write(POWER_DOWN_CONTROL_ADDR, 
-						  spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)|DAC_OFF);
+				mute();
 				davinci_mcbsp_stop(DAVINCI_MCBSP1);
 				davinci_stop_dma(data->master_chan);
                         }
@@ -888,28 +889,8 @@ static snd_pcm_uframes_t davinci_pcm_pointer(struct snd_pcm_substream *substream
       }
       frames = bytes_to_frames(runtime,nxt);
       if( frames > maxframes ){
-//         printk( KERN_ERR "%s: %u bytes/%u frames\n", __FUNCTION__, nxt, frames );
          maxframes = frames ;
       }
-#if 0
-      printk( KERN_ERR "%u frames (%u max), %p/%p, period %u/%u of %u\n"
-              , frames
-              , runtime->buffer_size
-              , (void *)temp.src
-              , (void *)iram->addr
-              , data->cur_dma
-              , period
-              , runtime->periods
-      );
-      printk( KERN_ERR "%s: dma chan %u, %p->%p (len 0x%x/0x%x)\n"
-              , __FUNCTION__
-              , data->master_chan
-              , (void *)temp.src
-              , (void *)temp.dst
-              , temp.a_b_cnt
-              , temp.ccnt
-      );
-#endif
    }
    return frames ;
 }
@@ -918,7 +899,6 @@ static int davinci_pcm_ioctl(struct snd_pcm_substream *substream, unsigned int c
 {
    static int prevCmd = 0 ;
    if( cmd != prevCmd ){
-      printk( KERN_ERR "%s: cmd %u, param %p\n", __FUNCTION__, cmd, arg );
       prevCmd = cmd ;
    }
    return snd_pcm_lib_ioctl(substream, cmd, arg);
@@ -964,8 +944,6 @@ aic23_proc_write( struct file *file,
 		if( (2 == sscanf(inbuf,"%u %u\n", &reg, &value ))
 		    &&
 		    (NUM_AIC23_REGS > reg) ) {
-			printk( KERN_ERR "%s: set reg 0x%x to 0x%x here\n", 
-				__FUNCTION__, reg, value );
                         spi_tlv320aic23_write_value(reg,value);
 			return count ;
 		}
@@ -990,7 +968,6 @@ static int __devinit davinci_aic23probe(struct platform_device *dev)
 	aic23_local.micbias = 1;
 	aic23_local.mod_cnt = 0;
 	
-        printk( KERN_ERR "%s\n", __FUNCTION__ );
 	ret = -ENOMEM;
 	card = snd_card_new(SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1, THIS_MODULE, 0);
 	if (!card)
@@ -1014,8 +991,6 @@ static int __devinit davinci_aic23probe(struct platform_device *dev)
 	pcm->private_data = 0 ;
 	pcm->private_free = 0 ;
 
-        printk( KERN_ERR "%s: dma_mask %p\n", __FUNCTION__, card->dev->dma_mask );
-
 	if (play) {
 		snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &davinci_pcm_ops);
 	}
@@ -1028,31 +1003,22 @@ static int __devinit davinci_aic23probe(struct platform_device *dev)
         strcpy(card->mixername, "Mixer davaic23");
 
         kctl = snd_ctl_new1(&volume_control, card);
-        printk( KERN_ERR "volume control == %p\n", kctl );
         kctl->id.device = 0 ;
 	ret = snd_ctl_add(card,kctl);
         if( ret ){
            printk( KERN_ERR "%s: error %d adding volume control\n", __FUNCTION__, ret );
            goto err ;
         }
-        else
-           printk( KERN_ERR "%s: added volume control <%s>\n", __FUNCTION__, volume_control.name );
 
 	ret = snd_card_register(card);
 	if (ret == 0) {
-		list_for_each_entry(kctl, &card->controls, list){
-                   printk( KERN_ERR "%s:control %p (count %u) info %p\n", __FUNCTION__, kctl, kctl->count, kctl->info );
-                   printk( KERN_ERR "%s:name %s, numid %d, dev %d.%d\n", __FUNCTION__, kctl->id.name, kctl->id.numid, kctl->id.device, kctl->id.subdevice );
-                }
-
 		procentry = create_proc_entry(procentryname, 0, NULL);
 		if( procentry ){
 			procentry->read_proc = aic23_proc_read ;
 			procentry->write_proc = aic23_proc_write ;
 		}
 
-		audio_aic23_write(POWER_DOWN_CONTROL_ADDR, spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)|DAC_OFF);
-		gpio_direction_output(MUTE_GPIO,MUTED);
+		mute();
 		platform_set_drvdata(dev, card);
 		return 0;
 	}
@@ -1069,7 +1035,6 @@ static int __devexit davinci_aic23remove(struct platform_device *dev)
 	struct snd_card *card = platform_get_drvdata(dev);
 
 	if (card) {
-		printk( KERN_ERR "%s\n", __FUNCTION__ );
                 spi_tlv320aic23_shutdown();
                 platform_set_drvdata(dev, NULL);
 		snd_card_free(card);
@@ -1090,13 +1055,11 @@ static struct platform_driver davinci_aic23driver = {
 
 static int __init davinci_aic23init(void)
 {
-	printk( KERN_ERR "%s\n", __FUNCTION__ );
 	return platform_driver_register(&davinci_aic23driver);
 }
 
 static void __exit davinci_aic23exit(void)
 {
-	printk( KERN_ERR "%s\n", __FUNCTION__ );
 	platform_driver_unregister(&davinci_aic23driver);
 }
 
