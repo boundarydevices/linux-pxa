@@ -269,18 +269,18 @@ static int first[NUM_DMA_CHANNELS] = {1,1,1,1};
                 regs.ccnt = 1 ;
 		davinci_set_dma_params(channel, &regs);
                 if( first[dest_dma] ){
-                   printk( KERN_ERR "ram-to-iram dma %p->%p (%u bytes) on channel %u\n", (void *)regs.src, (void *)regs.dst, period_bytes, channel );
-printk( KERN_ERR "%u periods\n", runtime->periods );
-printk( KERN_ERR "%02x %02x %02x %02x\n", substream->dma_buffer.area[0],substream->dma_buffer.area[1],substream->dma_buffer.area[2],substream->dma_buffer.area[3] );
-printk( KERN_ERR "%s: DODMA\n", __FUNCTION__ );
-printk( KERN_ERR "opt\t\t%8x\n", regs.opt );
-printk( KERN_ERR "src\t\t%8x\n", regs.src );
-printk( KERN_ERR "a_b_cnt\t\t%8x\n", regs.a_b_cnt );
-printk( KERN_ERR "dst\t\t%8x\n", regs.dst );
-printk( KERN_ERR "src_dst_bidx\t\t%8x\n", regs.src_dst_bidx );
-printk( KERN_ERR "link_bcntrld\t\t%8x\n", regs.link_bcntrld );
-printk( KERN_ERR "src_dst_cidx\t\t%8x\n", regs.src_dst_cidx );
-printk( KERN_ERR "ccnt\t\t%8x\n", regs.ccnt );
+printk( KERN_DEBUG "ram-to-iram dma %p->%p (%u bytes) on channel %u\n", (void *)regs.src, (void *)regs.dst, period_bytes, channel );
+printk( KERN_DEBUG "%u periods\n", runtime->periods );
+printk( KERN_DEBUG "%02x %02x %02x %02x\n", substream->dma_buffer.area[0],substream->dma_buffer.area[1],substream->dma_buffer.area[2],substream->dma_buffer.area[3] );
+printk( KERN_DEBUG "%s: DODMA\n", __FUNCTION__ );
+printk( KERN_DEBUG "opt\t\t%8x\n", regs.opt );
+printk( KERN_DEBUG "src\t\t%8x\n", regs.src );
+printk( KERN_DEBUG "a_b_cnt\t\t%8x\n", regs.a_b_cnt );
+printk( KERN_DEBUG "dst\t\t%8x\n", regs.dst );
+printk( KERN_DEBUG "src_dst_bidx\t\t%8x\n", regs.src_dst_bidx );
+printk( KERN_DEBUG "link_bcntrld\t\t%8x\n", regs.link_bcntrld );
+printk( KERN_DEBUG "src_dst_cidx\t\t%8x\n", regs.src_dst_cidx );
+printk( KERN_DEBUG "ccnt\t\t%8x\n", regs.ccnt );
                    first[dest_dma] = 0 ;
                 }
                 err = davinci_start_dma(channel);
@@ -538,7 +538,7 @@ davinci_request_sound_dma
 		printk( KERN_ERR "Error in requesting Master channel %d = 0x%x\n", device_id, err );
 		return err;
 	}
-	printk( KERN_ERR "%s: master channel %d, tcc %d\n", __FUNCTION__, *master_ch, tcc );
+	printk( KERN_DEBUG "%s: master channel %d, tcc %d\n", __FUNCTION__, *master_ch, tcc );
         memset(&regs,0,sizeof(regs) );
 	davinci_set_dma_params(*master_ch, &regs);
 
@@ -553,7 +553,7 @@ davinci_request_sound_dma
 			printk( KERN_ERR "Error in requesting channel %d=0x%x\n", i, err);
 			return err;
 		}
-		printk( KERN_ERR "%s: channel[%d] == %d, tcc %d\n", __FUNCTION__, i, channels[i], tcc );
+		printk( KERN_DEBUG "%s: channel[%d] == %d, tcc %d\n", __FUNCTION__, i, channels[i], tcc );
 	}
 
         *ram_to_iram_tcc = TCC_ANY ;
@@ -566,7 +566,7 @@ davinci_request_sound_dma
            printk( KERN_ERR "%s: error allocating ram-to-iram dma channel\n", __FUNCTION__ );
            return err ;
         }
-        printk( KERN_ERR "%s: ram-to-iram channel %u, tcc %d\n", __FUNCTION__, *ram_to_iram_channel, *ram_to_iram_tcc );
+        printk( KERN_DEBUG "%s: ram-to-iram channel %u, tcc %d\n", __FUNCTION__, *ram_to_iram_channel, *ram_to_iram_tcc );
 
 	/* Chain the channels together */
 	for( i = 0; i < NUM_DMA_CHANNELS; i++ ){
@@ -587,7 +587,7 @@ static int davinci_free_sound_dma(int master_ch, int *channels, int iram_channel
 {
 	int i;
 
-        printk( KERN_ERR "%s\n", __FUNCTION__ );
+        printk( KERN_DEBUG "%s\n", __FUNCTION__ );
 	/* release the Master channel */
 	davinci_free_dma(master_ch);
 
@@ -634,7 +634,7 @@ inline void aic23_configure(void)
 	/* Zero-cross detect on */
 	aic23_local.volume_reg = LZC_ON;
 	aic23_update(SET_VOLUME, aic23_local.volume);
-        printk( KERN_ERR "%s: volume %d\n", __FUNCTION__, aic23_local.volume );
+        printk( KERN_DEBUG "%s: volume %d\n", __FUNCTION__, aic23_local.volume );
 
 	/* Analog audio path control, DAC selected, delete INSEL_MIC for line in */
 	audio_aic23_write(ANALOG_AUDIO_CONTROL_ADDR, DAC_SELECTED | INSEL_MIC);	// | MICB_20DB | BYPASS_ON
@@ -660,7 +660,7 @@ inline void aic23_configure(void)
 
 static void private_free(struct snd_pcm_runtime *runtime)
 {
-   printk( KERN_ERR "%s:%p\n", __FUNCTION__,runtime->private_data );
+   printk( KERN_DEBUG "%s:%p\n", __FUNCTION__,runtime->private_data );
    if(runtime->private_data){
       struct dma_playback_info *data = runtime->private_data ;
       davinci_stop_dma(data->master_chan);
@@ -688,7 +688,7 @@ static int davinci_pcm_preallocate_dma_buffer(struct snd_pcm_substream *substrea
         iram->addr = DAVINCI_IRAM_BASE + IRAM_RESERVED ;
         memset(iram->area,0,IRAM_LEFT);
 	buf->area = dma_alloc_writecombine(buf->dev.dev, size, &buf->addr, GFP_KERNEL);
-        printk( KERN_ERR "allocated big buffer at %p (0x%x, %u bytes)\n", buf->area, buf->addr, size );
+        printk( KERN_DEBUG "allocated big buffer at %p (0x%x, %u bytes)\n", buf->area, buf->addr, size );
         substream->private_data = iram ;
    }
 
@@ -699,7 +699,7 @@ static int davinci_pcm_preallocate_dma_buffer(struct snd_pcm_substream *substrea
         }
 	buf->bytes = size;
         memset(buf->area,0xff,size);
-        printk( KERN_ERR "dma bufs at %p (addr 0x%x), size %u\n", buf->area, buf->addr, buf->bytes );
+        printk( KERN_DEBUG "dma bufs at %p (addr 0x%x), size %u\n", buf->area, buf->addr, buf->bytes );
 	return 0;
 }
 
@@ -709,7 +709,7 @@ static int davinci_pcm_open(struct snd_pcm_substream *substream)
    struct dma_playback_info *data = 0 ;
    int err ;
 
-   printk( KERN_ERR "%s: %lu fragments\n", __FUNCTION__, runtime ? runtime->avail_max : -1 );
+   printk( KERN_DEBUG "%s: %lu fragments\n", __FUNCTION__, runtime ? runtime->avail_max : -1 );
 
    err = davinci_pcm_preallocate_dma_buffer(substream);
    if (err)
@@ -744,7 +744,7 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 {
 	struct snd_pcm_runtime *runtime = substream->runtime;
 #if 0
-	printk( KERN_ERR "%s: format 0x%x, rate %u, %u channels, dma %p, %lu frags\n"
+	printk( KERN_DEBUG "%s: format 0x%x, rate %u, %u channels, dma %p, %lu frags\n"
                 , __FUNCTION__ 
                 , runtime->format
                 , runtime->rate
@@ -752,7 +752,7 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
                 , (void *)runtime->dma_addr
                 , runtime->avail_max
                 );
-	printk( KERN_ERR "%s: %u periods of %lu bytes. bufsize == %lu\n"
+	printk( KERN_DEBUG "%s: %u periods of %lu bytes. bufsize == %lu\n"
                 , __FUNCTION__
                 , runtime->periods
                 , runtime->period_size
@@ -761,7 +761,7 @@ static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 #endif
         if( audio_samplerate != runtime->rate ){
            davinci_set_samplerate(runtime->rate);
-           printk( KERN_ERR "samplerate = %d\n", runtime->rate );
+           printk( KERN_DEBUG "samplerate = %d\n", runtime->rate );
         }
 
 	return 0 ;
@@ -819,6 +819,7 @@ static int davinci_pcm_hw_params(struct snd_pcm_substream *substream,
    snd_pcm_set_runtime_buffer(substream, &substream->dma_buffer);
    davinci_mcbsp_config(DAVINCI_MCBSP1, &initial_config);
    aic23_configure();
+   unmute();
    return 0 ;
 }
 
@@ -838,7 +839,7 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			// do something to start the PCM engine
 			if(data){
 				edmacc_paramentry_regs regs ;
-				unmute();
+//				unmute();
                                 data->cur_dma = 0 ;
 				davinci_get_dma_params(data->channels[0], &regs);
 				davinci_set_dma_params(data->master_chan, &regs);
