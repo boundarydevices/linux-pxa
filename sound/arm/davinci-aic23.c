@@ -47,7 +47,7 @@
 #define NUM_DMA_CHANNELS 4
 
 #define IRAM_RESERVED 32
-#define IRAM_SIZE 0x2000	//16k in ram0/1 combination
+#define IRAM_SIZE 0x4000	//16k in ram0/1 combination
 #define IRAM_LEFT (IRAM_SIZE-IRAM_RESERVED)
 #define IRAM_MULTIPLE 8
 #define BUFFER_BYTES (IRAM_MULTIPLE*IRAM_LEFT)
