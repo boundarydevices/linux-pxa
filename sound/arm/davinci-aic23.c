@@ -839,7 +839,7 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			// do something to start the PCM engine
 			if(data){
 				edmacc_paramentry_regs regs ;
-//				unmute();
+                                gpio_direction_output(MUTE_GPIO,NOTMUTED);
                                 data->cur_dma = 0 ;
 				davinci_get_dma_params(data->channels[0], &regs);
 				davinci_set_dma_params(data->master_chan, &regs);
@@ -851,7 +851,7 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 		case SNDRV_PCM_TRIGGER_STOP: {
 			// do something to stop the PCM engine
 			if(data){
-				mute();
+                                gpio_direction_output(MUTE_GPIO,MUTED);
 				davinci_mcbsp_stop(DAVINCI_MCBSP1);
 				davinci_stop_dma(data->master_chan);
                         }
