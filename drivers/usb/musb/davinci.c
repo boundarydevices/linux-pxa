@@ -180,6 +180,7 @@ static void davinci_source_power(struct musb *musb, int is_on, int immediate)
 #ifdef CONFIG_MACH_DAVINCI_XENON
 	gpio_set_value(GPIO(50),is_on^1);
 	immediate = 1;
+	printk(KERN_ERR "USB power %s\n",(is_on)? "on" : "off");
 #endif
 
 	if (machine_is_davinci_evm()) {
