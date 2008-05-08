@@ -29,6 +29,7 @@
 #include <linux/soundcard.h>
 #include <linux/clk.h>
 #include <sound/control.h>
+#include <linux/workqueue.h>
 
 #include <asm/irq.h>
 #include <linux/mutex.h>
@@ -227,6 +228,8 @@ static char const procentryname[] = {
 extern struct clk *davinci_mcbsp_get_clock(void);
 
 static long audio_samplerate = AUDIO_RATE_DEFAULT;
+static int  want_mute = 1 ;
+static struct work_struct mute_wq;
 
 static struct davinci_mcbsp_reg_cfg initial_config = {
 	.spcr2 = FREE | XINTM(3),
@@ -329,6 +332,20 @@ static void audio_aic23_setbits(u8 address, u16 data)
 {
 	int oldval = spi_tlv320aic23_read_value(address);
 	audio_aic23_write(address, oldval | data );
+}
+
+static void update_mute(struct work_struct *work)
+{
+	if( want_mute ){
+		audio_aic23_setbits(DIGITAL_AUDIO_CONTROL_ADDR, DACM_MUTE);
+//	audio_aic23_setbits(POWER_DOWN_CONTROL_ADDR, DAC_OFF);
+		gpio_direction_output(MUTE_GPIO,MUTED);
+   }
+   else {
+		gpio_direction_output(MUTE_GPIO,NOTMUTED);
+		audio_aic23_clearbits(POWER_DOWN_CONTROL_ADDR, DAC_OFF);
+		audio_aic23_clearbits(DIGITAL_AUDIO_CONTROL_ADDR, DACM_MUTE);
+   }
 }
 
 static int aic23_update(int flag, int val)
@@ -605,8 +622,8 @@ static int davinci_free_sound_dma(int master_ch, int *channels, int iram_channel
 static void mute(void)
 {
 	if( 0 == (spi_tlv320aic23_read_value(POWER_DOWN_CONTROL_ADDR)&DAC_OFF) ){
-//		audio_aic23_setbits(DIGITAL_AUDIO_CONTROL_ADDR, DACM_MUTE);
-		audio_aic23_setbits(POWER_DOWN_CONTROL_ADDR, DAC_OFF);
+		audio_aic23_setbits(DIGITAL_AUDIO_CONTROL_ADDR, DACM_MUTE);
+//		audio_aic23_setbits(POWER_DOWN_CONTROL_ADDR, DAC_OFF);
 		gpio_direction_output(MUTE_GPIO,MUTED);
 	}
 }
@@ -839,25 +856,27 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 			// do something to start the PCM engine
 			if(data){
 				edmacc_paramentry_regs regs ;
-                                gpio_direction_output(MUTE_GPIO,NOTMUTED);
-                                data->cur_dma = 0 ;
+				data->cur_dma = 0 ;
+				want_mute = 0 ;
+				schedule_work(&mute_wq);
 				davinci_get_dma_params(data->channels[0], &regs);
 				davinci_set_dma_params(data->master_chan, &regs);
 				davinci_start_dma(data->master_chan);
-                                davinci_mcbsp_start(DAVINCI_MCBSP1);
-                        }
+				davinci_mcbsp_start(DAVINCI_MCBSP1);
+			}
 			break;
-   		}
+		}
 		case SNDRV_PCM_TRIGGER_STOP: {
 			// do something to stop the PCM engine
 			if(data){
-                                gpio_direction_output(MUTE_GPIO,MUTED);
+				want_mute = 1 ;
+				schedule_work(&mute_wq);
 				davinci_mcbsp_stop(DAVINCI_MCBSP1);
 				davinci_stop_dma(data->master_chan);
-                        }
-			break;
-                }
-   		default:
+				break;
+			}
+      }
+		default:
 			return -EINVAL;
 	}
 	return 0 ;
@@ -1018,7 +1037,7 @@ static int __devinit davinci_aic23probe(struct platform_device *dev)
 			procentry->read_proc = aic23_proc_read ;
 			procentry->write_proc = aic23_proc_write ;
 		}
-
+		INIT_WORK(&mute_wq, update_mute);
 		mute();
 		platform_set_drvdata(dev, card);
 		return 0;
