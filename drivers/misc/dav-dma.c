@@ -26,7 +26,7 @@
 #endif
 #include <linux/dma-mapping.h>
 
-// #define DEBUG
+#define DEBUG
 #ifdef DEBUG
 #define DEBUGMSG( __fmt, ... ) printk( KERN_ERR __fmt, ## __VA_ARGS__ )
 #else
@@ -52,7 +52,7 @@ static list_header_t *mem_pool ;
 static DECLARE_MUTEX(pool_lock);
 static int dmach = -1 ;
 static int tcc=TCC_ANY ;
-static struct completion dma_completion ;
+static struct completion dma_completion = COMPLETION_INITIALIZER(dma_completion);
 
 typedef struct {
 	struct list_head node_ ;
@@ -251,6 +251,8 @@ static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsi
 		}
 
 		case DAV_DMA_DODMA: {
+         return 0 ;
+
 			edmacc_paramentry_regs regs ;
 			int rval ;
 			if( copy_from_user( &regs, (void *)param, sizeof(regs) ) ){
@@ -265,6 +267,15 @@ static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsi
 
 			if( !wait_for_completion_interruptible_timeout(&dma_completion, 100 ) ){
 	                	printk( KERN_ERR "%s: timeout\n", __FUNCTION__ );
+                     printk( KERN_ERR "opt == 0x%08x\n", regs.opt );
+                     printk( KERN_ERR "src == 0x%08x\n", regs.src );
+                     printk( KERN_ERR "a_b_cnt == 0x%08x\n", regs.a_b_cnt );
+                     printk( KERN_ERR "dst == 0x%08x\n", regs.dst );
+                     printk( KERN_ERR "src_dst_bidx == 0x%08x\n", regs.src_dst_bidx );
+                     printk( KERN_ERR "link_bcntrld == 0x%08x\n", regs.link_bcntrld );
+                     printk( KERN_ERR "src_dst_cidx == 0x%08x\n", regs.src_dst_cidx );
+                     printk( KERN_ERR "ccnt == 0x%08x\n", regs.ccnt );
+                     rval = -EFAULT ;
 			}
 
 			return rval ;
@@ -384,13 +395,6 @@ static int dav_dma_init(void)
 		if( pool_data ){
 			mem_pool = init_memory_pool(pool_size, pool_data);
 			printk( KERN_ERR "memory pool header at %p\n", mem_pool );
-			if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_1)) ){
-				printk( KERN_ERR "%s: DMA channel %d, tcc %d\n", __FUNCTION__, dmach, tcc );
-                                tcc <<= 12 ;
-                                init_completion(&dma_completion);
-                        } else {
-				printk( KERN_ERR "%s: error %d requesting DMA\n", __FUNCTION__, result );
-			}
 		}
 		else
 			printk( KERN_ERR "Error allocating pool of 0x%x bytes\n", pool_size );
@@ -398,6 +402,15 @@ static int dav_dma_init(void)
 	else
 		printk( KERN_INFO "%s: no memory pool allocated\n", __FUNCTION__ );
 
+	if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_1)) ){
+		printk( KERN_ERR "%s: DMA channel %d, tcc %d\n", __FUNCTION__, dmach, tcc );
+		tcc <<= 12 ;
+		init_completion(&dma_completion);
+	} else {
+		printk( KERN_ERR "%s: error %d requesting DMA\n", __FUNCTION__, result );
+		return -EFAULT ;
+	}
+	
 	dav_dma_setup_cdev(&dav_dma_dev);
 	dav_dma_class = class_create(THIS_MODULE, dav_dma_name);
 	class_device_create(dav_dma_class, NULL,
