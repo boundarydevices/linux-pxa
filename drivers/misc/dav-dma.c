@@ -26,7 +26,7 @@
 #endif
 #include <linux/dma-mapping.h>
 
-// #define DEBUG
+#define DEBUG
 #ifdef DEBUG
 #define DEBUGMSG( __fmt, ... ) printk( KERN_ERR __fmt, ## __VA_ARGS__ )
 #else
@@ -251,6 +251,8 @@ static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsi
 		}
 
 		case DAV_DMA_DODMA: {
+         return 0 ;
+
 			edmacc_paramentry_regs regs ;
 			int rval ;
 			if( copy_from_user( &regs, (void *)param, sizeof(regs) ) ){
