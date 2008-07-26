@@ -411,8 +411,8 @@ static int dav_dma_init(void)
 	
 	dav_dma_setup_cdev(&dav_dma_dev);
 	dav_dma_class = class_create(THIS_MODULE, dav_dma_name);
-	class_device_create(dav_dma_class, NULL,
-			MKDEV(dav_dma_major, dav_dma_minor), NULL, "dav-dma-%d", 0);
+	device_create(dav_dma_class, NULL,
+			MKDEV(dav_dma_major, dav_dma_minor), "dav-dma-%d", 0);
 
 	return result ;
 }
@@ -429,7 +429,7 @@ static void dav_dma_exit(void)
            printk( KERN_ERR "%s: free dma channel %d\n", __FUNCTION__, dmach );
            dmach = -1 ;
         }
-        class_device_destroy(dav_dma_class,MKDEV(dav_dma_major, dav_dma_minor));
+        device_destroy(dav_dma_class,MKDEV(dav_dma_major, dav_dma_minor));
         class_destroy(dav_dma_class);
 	cdev_del(&dav_dma_dev.cdev);
 	unregister_chrdev_region(MKDEV(dav_dma_major, dav_dma_minor), dav_dma_nr_devs);
