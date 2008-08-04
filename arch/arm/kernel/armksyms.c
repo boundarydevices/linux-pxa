@@ -188,3 +188,6 @@ EXPORT_SYMBOL(_find_next_bit_be);
 EXPORT_SYMBOL(mcount);
 EXPORT_SYMBOL(__gnu_mcount_nc);
 #endif
+EXPORT_SYMBOL(sys_open);
+EXPORT_SYMBOL(sys_read);
+EXPORT_SYMBOL(sys_lseek);
