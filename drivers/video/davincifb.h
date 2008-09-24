@@ -33,7 +33,7 @@
 #define DAVINCIFB_DEVICE "davincifb"
 #define DAVINCIFB_DRIVER "davincifb"
 
-#define MULTIPLE_BUFFERING      1
+// #define MULTIPLE_BUFFERING      1
 
 #ifdef MULTIPLE_BUFFERING
 #define DOUBLE_BUF      2
