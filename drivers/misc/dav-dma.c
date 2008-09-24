@@ -46,6 +46,8 @@ static char dav_dma_name[] = {
 static struct dav_dma_dev_t dav_dma_dev ;
 static struct class *dav_dma_class;
 static unsigned pool_size = 0 ;
+static unsigned pool_physaddr = 0 ;
+static unsigned phys_size = 0 ;
 static void *pool_data ;
 static dma_addr_t pool_phys ;
 static list_header_t *mem_pool ;
@@ -340,6 +342,25 @@ static int dav_dma_setup(char *options)
 			pool_size = PAGE_ALIGN(simple_strtoul(this_opt+5,0,0));
 			printk( KERN_ERR "pool size == 0x%x, order 0x%x\n", pool_size, get_order(pool_size) );
 			pool_size = (1<<get_order(pool_size))<<PAGE_SHIFT ;
+		} else if( 0 == strncmp("phys=", this_opt, 5) ){
+			char* p;
+			char const *optval = this_opt+5 ;
+			printk( KERN_ERR "%s: phys (%s)", __func__, optval );
+			pool_physaddr=simple_strtoul(optval, &p, 0);
+			if(p && (*p=='M')){ 
+			   pool_physaddr = (pool_physaddr<<20)+0x80000000;
+			   p++ ;
+			}
+			if( p && ('+' == *p) ){
+				p++ ;
+				phys_size =simple_strtoul(p,&p,0);
+				if(p && ('M'==*p)){
+					phys_size <<= 20 ;
+				}
+				printk( KERN_ERR "%s: 0x%x, size 0x%x\n", __func__, pool_physaddr, phys_size );
+			}
+			else
+				printk( KERN_ERR "%s: phys=0x%x, no size\n", __func__, pool_physaddr );
 		}
 		else if( *this_opt ){
 			printk( KERN_ERR "Unknown option %s\n", this_opt );
@@ -390,16 +411,24 @@ static int dav_dma_init(void)
 		printk( KERN_ERR "dma_alloc: %p (phys %p)\n", pool_data, (void *)pool_phys );
 //dma_alloc_coherent(struct device *dev, size_t size, dma_addr_t *handle, int gfp)
       // pool_data = (void *)__get_free_pages(GFP_KERNEL|GFP_DMA,get_order(pool_size));
-		if( pool_data ){
-			mem_pool = init_memory_pool(pool_size, pool_data);
-			printk( KERN_ERR "memory pool header at %p\n", mem_pool );
-		}
-		else
-			printk( KERN_ERR "Error allocating pool of 0x%x bytes\n", pool_size );
+	}
+        else if( (0<pool_physaddr) && (0 < phys_size) ){
+           pool_data = ioremap(pool_physaddr, phys_size);
+	   if( pool_data ){
+		pool_phys = pool_physaddr ;
+		pool_size = phys_size ;
+		printk( KERN_ERR "remapped 0x%x+0x%x to 0x%x\n", pool_physaddr, phys_size, pool_data );
+	   } else
+		   printk( KERN_ERR "%s: Error remapping 0x%x (%u)\n", __func__, pool_physaddr, phys_size );
+        } else
+		printk( KERN_INFO "%s: no memory pool allocated: 0x%x 0x%x\n", __FUNCTION__, pool_physaddr, phys_size );
+
+	if( pool_data ){
+		mem_pool = init_memory_pool(pool_size, pool_data);
+		printk( KERN_ERR "memory pool header at %p\n", mem_pool );
 	}
 	else
-		printk( KERN_INFO "%s: no memory pool allocated\n", __FUNCTION__ );
-
+		printk( KERN_ERR "Error allocating pool of 0x%x bytes\n", pool_size );
 	if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_1)) ){
 		printk( KERN_ERR "%s: DMA channel %d, tcc %d\n", __FUNCTION__, dmach, tcc );
 		tcc <<= 12 ;
@@ -422,7 +451,12 @@ static void dav_dma_exit(void)
 	DEBUGMSG( "%s\n", __FUNCTION__);
 	if( pool_data ){
 //		free_pages( (unsigned long)pool_data, get_order(pool_size) );
-                dma_free_coherent(NULL, pool_size, (void *)pool_data, pool_phys );
+		if( 0 == pool_physaddr ){
+			dma_free_coherent(NULL, pool_size, (void *)pool_data, pool_phys );
+		} // dynamically allocated
+		else {
+			iounmap(pool_data);
+		}
 	}
         if( 0 <= dmach ){
            davinci_free_dma(dmach);
