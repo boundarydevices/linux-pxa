@@ -42,6 +42,15 @@ config SND_DAVINCI_SOC_SFFSDR
 	  Say Y if you want to add support for SoC audio on
 	  Lyrtech SFFSDR board.
 
+config SND_DAVINCI_SOC_XENON
+	tristate "SoC Audio support for DaVinci Xenon"
+	depends on SND_DAVINCI_SOC && MACH_DAVINCI_XENON
+	select SND_DAVINCI_SOC_I2S
+	select SND_SOC_TLV320AIC23
+	help
+	  Say Y if you want to add support for SoC audio on TI
+	  DaVinci Xenon platform.
+
 config  SND_DA830_SOC_EVM
 	tristate "SoC Audio support for DA830/OMAP-L137 EVM"
 	depends on SND_DAVINCI_SOC && MACH_DAVINCI_DA830_EVM
