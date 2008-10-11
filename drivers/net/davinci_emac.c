@@ -1210,14 +1210,14 @@ static int emac_net_tx_complete(struct emac_priv *priv,
 static void emac_txch_teardown(struct emac_priv *priv, u32 ch)
 {
 	struct device *emac_dev = &priv->ndev->dev;
-	u32 teardown_cnt = 0xFFFFFFF0; /* Some high value */
+	u32 teardown_cnt = 1000; /* Some high value */
 	struct emac_txch *txch = priv->txch[ch];
 	struct emac_tx_bd __iomem *curr_bd;
 
 	while ((emac_read(EMAC_TXCP(ch)) & EMAC_TEARDOWN_VALUE) !=
 	       EMAC_TEARDOWN_VALUE) {
 		/* wait till tx teardown complete */
-		cpu_relax(); /* TODO: check if this helps ... */
+		mdelay(1); /* TODO: check if this helps ... */
 		--teardown_cnt;
 		if (0 == teardown_cnt) {
 			dev_err(emac_dev, "EMAC: TX teardown aborted\n");
@@ -2703,6 +2703,17 @@ static int __devinit davinci_emac_probe(struct platform_device *pdev)
 	}
 	ndev->irq = res->start;
 
+	if (!is_valid_ether_addr(priv->mac_addr)) {
+		u32 val;
+		val = emac_read(EMAC_MACSRCADDRHI);
+		priv->mac_addr[0] = (char)(val);
+		priv->mac_addr[1] = (char)(val>>8);
+		priv->mac_addr[2] = (char)(val>>16);
+		priv->mac_addr[3] = (char)(val>>24);
+		val = emac_read(EMAC_MACSRCADDRLO);
+		priv->mac_addr[4] = (char)(val);
+		priv->mac_addr[5] = (char)(val>>8);
+	}
 	if (!is_valid_ether_addr(priv->mac_addr)) {
 		/* Use random MAC if none passed */
 		random_ether_addr(priv->mac_addr);
