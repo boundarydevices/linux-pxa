@@ -42,6 +42,7 @@ config SND_PXA2XX_AC97
 config SND_DAVINCI_AIC23
 	tristate "Davinci AIC-23 PCM device"
 	select SND_PCM
+	select DAVINCI_MCBSP
 
 endif	# SND_ARM
 
