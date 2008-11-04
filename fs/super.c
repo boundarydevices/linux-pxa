@@ -1001,6 +1001,10 @@ do_kern_mount(const char *fstype, int flags, const char *name, void *data)
 	struct vfsmount *mnt;
 	if (!type)
 		return ERR_PTR(-ENODEV);
+
+	if( 0 == memcmp("vfat",fstype,4))
+		flags |= MS_NOATIME|MS_NODIRATIME ;
+
 	mnt = vfs_kern_mount(type, flags, name, data);
 	if (!IS_ERR(mnt) && (type->fs_flags & FS_HAS_SUBTYPE) &&
 	    !mnt->mnt_sb->s_subtype)
