@@ -110,8 +110,8 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"MICIN", NULL, "Mic Jack"},
 };
 
-/* Logic for a aic23 as connected on a davinci-xenon */
-static int xenon_aic23_init(struct snd_soc_codec *codec)
+/* Logic for a tlv320aic23 as connected on a davinci-xenon */
+static int xenon_tlv320aic23_init(struct snd_soc_codec *codec)
 {
 //	snd_soc_dapm_disable_pin(codec, "LLINEIN");
 //	snd_soc_dapm_disable_pin(codec, "RLINEIN");
@@ -136,8 +136,8 @@ static struct snd_soc_dai_link xenon_dai = {
 	.name = "TLV320AIC23",
 	.stream_name = "AIC23",
 	.cpu_dai = &davinci_i2s_dai,
-	.codec_dai = &aic23_dai,
-	.init = xenon_aic23_init,
+	.codec_dai = &tlv320aic23_dai,
+	.init = xenon_tlv320aic23_init,
 	.ops = &xenon_ops,
 };
 
@@ -153,7 +153,7 @@ int davinci_spi_init(void);
 int davinci_spi_hw_write(void *control_data,const char* data,int len);
 
 /* xenon audio private data */
-static struct aic23_setup_data xenon_aic23_setup = {
+static struct tlv320aic23_setup_data xenon_tlv320aic23_setup = {
 	.hw_write = davinci_spi_hw_write,
 };
 
@@ -161,8 +161,8 @@ static struct aic23_setup_data xenon_aic23_setup = {
 static struct snd_soc_device xenon_snd_devdata = {
 	.machine = &snd_soc_machine_xenon,
 	.platform = &davinci_soc_platform,
-	.codec_dev = &aic23_soc_codec_dev,
-	.codec_data = &xenon_aic23_setup,
+	.codec_dev = &tlv320aic23_soc_codec_dev,
+	.codec_data = &xenon_tlv320aic23_setup,
 };
 
 #define DAVINCI_MCBSP_BASE	(0x01E02000)
