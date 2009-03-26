@@ -409,25 +409,26 @@ static int dav_dma_init(void)
 		pool_data = dma_alloc_coherent( 0, pool_size, &pool_phys, GFP_KERNEL | GFP_DMA );
 		printk( KERN_ERR "dma_alloc: %p (phys %p)\n", pool_data, (void *)pool_phys );
 //dma_alloc_coherent(struct device *dev, size_t size, dma_addr_t *handle, int gfp)
-      // pool_data = (void *)__get_free_pages(GFP_KERNEL|GFP_DMA,get_order(pool_size));
-	}
-        else if( (0<pool_physaddr) && (0 < phys_size) ){
-           pool_data = ioremap(pool_physaddr, phys_size);
-	   if( pool_data ){
-		pool_phys = pool_physaddr ;
-		pool_size = phys_size ;
-		printk( KERN_ERR "remapped 0x%x+0x%x to 0x%x\n", pool_physaddr, phys_size, (unsigned)pool_data);
-	   } else
-		   printk( KERN_ERR "%s: Error remapping 0x%x (%u)\n", __func__, pool_physaddr, phys_size );
-        } else
+// pool_data = (void *)__get_free_pages(GFP_KERNEL|GFP_DMA,get_order(pool_size));
+	} else if( (0<pool_physaddr) && (0 < phys_size) ) {
+		pool_data = ioremap(pool_physaddr, phys_size);
+		if( pool_data ){
+			pool_phys = pool_physaddr ;
+			pool_size = phys_size ;
+			printk( KERN_ERR "remapped 0x%x+0x%x to 0x%x\n", pool_physaddr, phys_size, (unsigned)pool_data);
+		} else
+			printk( KERN_ERR "%s: Error remapping 0x%x (%u)\n", __func__, pool_physaddr, phys_size );
+	} else
 		printk( KERN_INFO "%s: no memory pool allocated: 0x%x 0x%x\n", __FUNCTION__, pool_physaddr, phys_size );
 
 	if( pool_data ){
 		mem_pool = init_memory_pool(pool_size, pool_data);
 		printk( KERN_ERR "memory pool header at %p\n", mem_pool );
-	}
-	else
+	} else {
 		printk( KERN_ERR "Error allocating pool of 0x%x bytes\n", pool_size );
+		unregister_chrdev_region(MKDEV(dav_dma_major, dav_dma_minor), dav_dma_nr_devs);
+		return -ENOMEM;
+	}
 
 	result = dmach = edma_alloc_channel(EDMA_CHANNEL_ANY, dav_dma_callback, 0, EVENTQ_1);
 	if (result >= 0) {
