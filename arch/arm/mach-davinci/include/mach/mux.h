@@ -88,6 +88,7 @@ enum davinci_dm644x_index {
 	/* LCD */
 	DM644X_LOEEN,
 	DM644X_LFLDEN,
+	DM644X_SPI,
 };
 
 enum davinci_dm646x_index {

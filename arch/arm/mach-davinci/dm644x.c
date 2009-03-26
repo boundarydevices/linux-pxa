@@ -401,6 +401,7 @@ MUX_CFG(DM644X, RGB666,		0,   22,    1,	  1,	 true)
 
 MUX_CFG(DM644X, LOEEN,		0,   24,    1,	  1,	 true)
 MUX_CFG(DM644X, LFLDEN,		0,   25,    1,	  1,	 false)
+MUX_CFG(DM644X, SPI,		1,    8,    1,	  1,	 false)
 #endif
 };
 
