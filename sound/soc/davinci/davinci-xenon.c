@@ -25,6 +25,8 @@
 #include <mach/hardware.h>
 #include <mach/edma.h>
 #include <mach/gpio.h>
+#include <mach/mux.h>
+#include <mach/asp.h>
 
 #include "../codecs/tlv320aic23.h"
 #include "davinci-pcm.h"
@@ -143,8 +145,9 @@ static struct snd_soc_dai_link xenon_dai = {
 };
 
 /* davinci-xenon audio machine driver */
-static struct snd_soc_machine snd_soc_machine_xenon = {
+static struct snd_soc_card snd_soc_card_xenon = {
 	.name = "DaVinci Xenon",
+	.platform = &davinci_soc_platform,
 	.dai_link = &xenon_dai,
 	.num_links = 1,
 };
@@ -160,24 +163,22 @@ static struct tlv320aic23_setup_data xenon_tlv320aic23_setup = {
 
 /* xenon audio subsystem */
 static struct snd_soc_device xenon_snd_devdata = {
-	.machine = &snd_soc_machine_xenon,
-	.platform = &davinci_soc_platform,
+	.card = &snd_soc_card_xenon,
 	.codec_dev = &tlv320aic23_soc_codec_dev,
 	.codec_data = &xenon_tlv320aic23_setup,
 };
 
-#define DAVINCI_MCBSP_BASE	(0x01E02000)
 static struct resource xenon_snd_resources[] = {
 	{
-		.start = DAVINCI_MCBSP_BASE,
-		.end = DAVINCI_MCBSP_BASE + SZ_8K - 1,
+		.start = DAVINCI_ASP0_BASE,
+		.end = DAVINCI_ASP0_BASE + SZ_8K - 1,
 		.flags = IORESOURCE_MEM,
 	},
 };
 
 static struct evm_snd_platform_data xenon_snd_data = {
-	.tx_dma_ch	= DAVINCI_DMA_MCBSP_TX,
-	.rx_dma_ch	= DAVINCI_DMA_MCBSP_RX,
+	.tx_dma_ch	= DAVINCI_DMA_ASP0_TX,
+	.rx_dma_ch	= DAVINCI_DMA_ASP0_RX,
 };
 
 static struct platform_device *xenon_snd_device;
@@ -187,16 +188,20 @@ static int __init xenon_init(void)
 {
 	int ret;
 
+	printk(KERN_ERR "%s\n", __func__);
+	davinci_cfg_reg(DM644X_MCBSP);
+	davinci_cfg_reg(DM644X_SPI);
 	ret = davinci_spi_init();
-	if (ret < 0)
+	if (ret < 0) {
 		return ret;
+	}
 	xenon_snd_device = platform_device_alloc("soc-audio", 0);
 	if (!xenon_snd_device)
 		return -ENOMEM;
 
 	platform_set_drvdata(xenon_snd_device, &xenon_snd_devdata);
 	xenon_snd_devdata.dev = &xenon_snd_device->dev;
-	xenon_snd_device->dev.platform_data = &xenon_snd_data;
+	platform_device_add_data(xenon_snd_device, &xenon_snd_data, sizeof(xenon_snd_data));
 
 	ret = platform_device_add_resources(xenon_snd_device, xenon_snd_resources,
 					    ARRAY_SIZE(xenon_snd_resources));

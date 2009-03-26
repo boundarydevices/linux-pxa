@@ -26,8 +26,6 @@
  * 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 #include <mach/hardware.h>
-#include <mach/mux.h>
-#include <mach/hardware.h>
 #include <linux/delay.h>
 #include <linux/ioport.h>
 #include <linux/err.h>
@@ -155,13 +153,13 @@ int davinci_spi_init(void)
 	struct device 	*dev = NULL;
 	struct clk * spi_clock;
 	unsigned long spi_rate;
-	davinci_mux_peripheral(DAVINCI_MUX_ASP,1);
-	davinci_mux_peripheral(DAVINCI_MUX_SPI,1);
 
-	spi_clock = clk_get (dev, "SPICLK");
+	spi_clock = clk_get (dev, "spi");
 
-	if (IS_ERR(spi_clock))
-        	return -1;
+	if (IS_ERR(spi_clock)) {
+		DPRINTK("SPICLK not found\n");
+		return -1;
+	}
 
 	clk_enable (spi_clock);
 	spi_rate = clk_get_rate (spi_clock);
