@@ -129,6 +129,7 @@ int snd_soc_dai_digital_mute(struct snd_soc_dai *dai, int mute);
  * This structure covers the clocking, formating and ALSA operations for each
  * interface.
  */
+/* ASoC DAI ops */
 struct snd_soc_dai_ops {
 	/*
 	 * DAI clocking configuration, all optional.
@@ -155,6 +156,7 @@ struct snd_soc_dai_ops {
 	 * Called by soc-core to minimise any pops.
 	 */
 	int (*digital_mute)(struct snd_soc_dai *dai, int mute);
+	int (*inform_channel_order)(struct snd_soc_dai *dai, int right_first);
 
 	/*
 	 * ALSA PCM audio operations - all optional.
