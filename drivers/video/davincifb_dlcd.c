@@ -45,8 +45,6 @@ void vpbe_davincifb_480p_prgb_config(void)
 	   (applicable to Analog DACS) */
 	dispc_reg_out(VENC_CVBS, 0);
 	dispc_reg_out(VENC_CMPNT, 0);
-	davinci_mux_peripheral(DAVINCI_MUX_RGB666,1);
-	davinci_mux_peripheral(DAVINCI_MUX_LOEEN,1);
 	/* Set Base Pixel X and Base Pixel Y */
 	dispc_reg_out(OSD_BASEPX, dm->videomode.basepx);
 	dispc_reg_out(OSD_BASEPY, dm->videomode.basepy);
@@ -99,8 +97,6 @@ void vpbe_davincifb_400p_prgb_config(void)
 	   (applicable to Analog DACS) */
 	dispc_reg_out(VENC_CVBS, 0);
 	dispc_reg_out(VENC_CMPNT, 0);
-	davinci_mux_peripheral(DAVINCI_MUX_RGB666,1);
-	davinci_mux_peripheral(DAVINCI_MUX_LOEEN,1);
 	/* Set Base Pixel X and Base Pixel Y */
 	dispc_reg_out(OSD_BASEPX, dm->videomode.basepx);
 	dispc_reg_out(OSD_BASEPY, dm->videomode.basepy);
@@ -151,8 +147,6 @@ void vpbe_davincifb_350p_prgb_config(void)
 	   (applicable to Analog DACS) */
 	dispc_reg_out(VENC_CVBS, 0);
 	dispc_reg_out(VENC_CMPNT, 0);
-	davinci_mux_peripheral(DAVINCI_MUX_RGB666,1);
-	davinci_mux_peripheral(DAVINCI_MUX_LOEEN,1);
 	/* Set Base Pixel X and Base Pixel Y */
 	dispc_reg_out(OSD_BASEPX, dm->videomode.basepx);
 	dispc_reg_out(OSD_BASEPY, dm->videomode.basepy);
@@ -253,8 +247,6 @@ void vpbe_davincifb_dlcd_nonstd_config(void)
 	venc = dispc_reg_in(VENC_VMOD) & VENC_VMOD_VENC;
 	lcdout = dispc_reg_in(VENC_LCDOUT);
 	vpbe_set_display_default();
-	davinci_mux_peripheral(DAVINCI_MUX_RGB666,1);
-	davinci_mux_peripheral(DAVINCI_MUX_LOEEN,1);
 
 	dispc_reg_out(OSD_BASEPX, dm->videomode.basepx);
 	dispc_reg_out(OSD_BASEPY, dm->videomode.basepy);
