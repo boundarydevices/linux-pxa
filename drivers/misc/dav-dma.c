@@ -53,7 +53,6 @@ static dma_addr_t pool_phys ;
 static list_header_t *mem_pool ;
 static DECLARE_MUTEX(pool_lock);
 static int dmach = -1 ;
-static int tcc=TCC_ANY ;
 static struct completion dma_completion = COMPLETION_INITIALIZER(dma_completion);
 
 typedef struct {
@@ -156,7 +155,7 @@ static int dav_dma_release(struct inode *i, struct file *f)
 	return 0 ;
 }
 
-static void dav_dma_callback(int lch, unsigned short ch_status, void *data)
+static void dav_dma_callback(unsigned lch, u16 ch_status, void *data)
 {
 	DEBUGMSG( "%s: %u\n", __FUNCTION__, ch_status );
         complete(&dma_completion);
@@ -253,16 +252,16 @@ static int dav_dma_ioctl(struct inode *i, struct file *f, unsigned int cmd, unsi
 		}
 
 		case DAV_DMA_DODMA: {
-			edmacc_paramentry_regs regs ;
+			struct edmacc_param regs ;
 			int rval ;
 			if( copy_from_user( &regs, (void *)param, sizeof(regs) ) ){
 				printk( KERN_ERR "%s: Invalid user ptr\n", __FUNCTION__ );
 				return -EFAULT ;
 			}
-                        regs.opt = (regs.opt & ~TCC)|tcc ;
-			davinci_set_dma_params(dmach, &regs);
+                        regs.opt = (regs.opt & ~EDMA_TCC(0x3f))|EDMA_TCC(dmach);
+			edma_write_slot(dmach, &regs);
 
-			rval = davinci_start_dma(dmach);
+			rval = edma_start(dmach);
 			DEBUGMSG( "%s: dma %d\n", __FUNCTION__, rval );
 
 			if( !wait_for_completion_interruptible_timeout(&dma_completion, 100 ) ){
@@ -417,7 +416,7 @@ static int dav_dma_init(void)
 	   if( pool_data ){
 		pool_phys = pool_physaddr ;
 		pool_size = phys_size ;
-		printk( KERN_ERR "remapped 0x%x+0x%x to 0x%x\n", pool_physaddr, phys_size, pool_data );
+		printk( KERN_ERR "remapped 0x%x+0x%x to 0x%x\n", pool_physaddr, phys_size, (unsigned)pool_data);
 	   } else
 		   printk( KERN_ERR "%s: Error remapping 0x%x (%u)\n", __func__, pool_physaddr, phys_size );
         } else
@@ -429,9 +428,10 @@ static int dav_dma_init(void)
 	}
 	else
 		printk( KERN_ERR "Error allocating pool of 0x%x bytes\n", pool_size );
-	if( 0 == ( result = davinci_request_dma(DAVINCI_DMA_CHANNEL_ANY, dav_dma_name, dav_dma_callback, 0, &dmach, &tcc, EVENTQ_1)) ){
-		printk( KERN_ERR "%s: DMA channel %d, tcc %d\n", __FUNCTION__, dmach, tcc );
-		tcc <<= 12 ;
+
+	result = dmach = edma_alloc_channel(EDMA_CHANNEL_ANY, dav_dma_callback, 0, EVENTQ_1);
+	if (result >= 0) {
+		printk( KERN_ERR "%s: DMA channel %d\n", __FUNCTION__, dmach);
 		init_completion(&dma_completion);
 	} else {
 		printk( KERN_ERR "%s: error %d requesting DMA\n", __FUNCTION__, result );
@@ -459,9 +459,9 @@ static void dav_dma_exit(void)
 		}
 	}
         if( 0 <= dmach ){
-           davinci_free_dma(dmach);
-           printk( KERN_ERR "%s: free dma channel %d\n", __FUNCTION__, dmach );
-           dmach = -1 ;
+        	edma_free_channel(dmach);
+        	printk( KERN_ERR "%s: free dma channel %d\n", __FUNCTION__, dmach );
+        	dmach = -1 ;
         }
         device_destroy(dav_dma_class,MKDEV(dav_dma_major, dav_dma_minor));
         class_destroy(dav_dma_class);

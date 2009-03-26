@@ -16,7 +16,7 @@ struct dav_dma_pool_t {
 };
 
 #define DAV_POOLINFO		_IOW(BASE_MAGIC, 0x01, struct dav_dma_pool_t)
-#define DAV_DMA_DODMA		_IOR(BASE_MAGIC, 0x02, edmacc_paramentry_regs)
+#define DAV_DMA_DODMA		_IOR(BASE_MAGIC, 0x02, struct edmacc_param)
 #define DAV_ALLOCATE		_IOWR(BASE_MAGIC, 0x03, u_int32_t)
 #define DAV_FREE		_IOW(BASE_MAGIC, 0x04, u_int32_t)
 
