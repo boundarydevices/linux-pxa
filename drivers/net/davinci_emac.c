@@ -101,8 +101,8 @@ static const char emac_version_string[] = "TI DaVinci EMAC Linux v6.1";
 #define EMAC_DEF_QOS_EN			(0) /* EMAC proprietary QoS disabled */
 #define EMAC_DEF_NO_BUFF_CHAIN		(0) /* No buffer chain */
 #define EMAC_DEF_MACCTRL_FRAME_EN	(0) /* Discard Maccontrol frames */
-#define EMAC_DEF_SHORT_FRAME_EN		(0) /* Discard short frames */
-#define EMAC_DEF_ERROR_FRAME_EN		(0) /* Discard error frames */
+#define EMAC_DEF_SHORT_FRAME_EN 	(1) /* Keep for debug short frames */
+#define EMAC_DEF_ERROR_FRAME_EN 	(1) /* Keep for debug error frames */
 #define EMAC_DEF_PROM_EN		(0) /* Promiscous disabled */
 #define EMAC_DEF_PROM_CH		(0) /* Promiscous channel is 0 */
 #define EMAC_DEF_BCAST_EN		(1) /* Broadcast enabled */
@@ -208,6 +208,7 @@ static const char emac_version_string[] = "TI DaVinci EMAC Linux v6.1";
 #define EMAC_CPPI_EOQ_BIT		BIT(28)
 #define EMAC_CPPI_TEARDOWN_COMPLETE_BIT BIT(27)
 #define EMAC_CPPI_PASS_CRC_BIT		BIT(26)
+#define EMAC_CPPI_RX_ERROR_FRAME	0x03fc0000
 #define EMAC_RX_BD_BUF_SIZE		(0xFFFF)
 #define EMAC_BD_LENGTH_FOR_CACHE	(16) /* only CPPI bytes */
 #define EMAC_RX_BD_PKT_LENGTH_MASK	(0xFFFF)
@@ -1971,22 +1972,31 @@ static int emac_rx_bdproc(struct emac_priv *priv, u32 ch, u32 budget)
 	       ((frame_status & EMAC_CPPI_OWNERSHIP_BIT) == 0) &&
 	       (pkts_processed < budget)) {
 
-		new_buffer = emac_net_alloc_rx_buf(priv, rxch->buf_size,
+		if (frame_status & EMAC_CPPI_RX_ERROR_FRAME) {
+			/* Error in packet - discard it and requeue desc */
+			printk(KERN_ERR "rcv_pkt: Error in packet %x\n", frame_status);
+			new_buffer = curr_bd->data_ptr;
+			new_buf_token = curr_bd->buf_token;
+			curr_pkt->pkt_token = 0;
+			curr_pkt->pkt_length = 0;
+		} else {
+			new_buffer = emac_net_alloc_rx_buf(priv,
+					EMAC_DEF_MAX_FRAME_SIZE,
 					&new_buf_token, EMAC_DEF_RX_CH);
-		if (unlikely(NULL == new_buffer)) {
-			++rxch->out_of_rx_buffers;
-			goto end_emac_rx_bdproc;
+			if (unlikely(NULL == new_buffer)) {
+				++rxch->out_of_rx_buffers;
+				goto end_emac_rx_bdproc;
+			}
+			/* populate received packet data structure */
+			rx_buf_obj = &curr_pkt->buf_list[0];
+			rx_buf_obj->data_ptr = (char *)curr_bd->data_ptr;
+			rx_buf_obj->length = curr_bd->off_b_len & EMAC_RX_BD_BUF_SIZE;
+			rx_buf_obj->buf_token = curr_bd->buf_token;
+			curr_pkt->pkt_token = curr_pkt->buf_list->buf_token;
+			curr_pkt->num_bufs = 1;
+			curr_pkt->pkt_length =
+				(frame_status & EMAC_RX_BD_PKT_LENGTH_MASK);
 		}
-
-		/* populate received packet data structure */
-		rx_buf_obj = &curr_pkt->buf_list[0];
-		rx_buf_obj->data_ptr = (char *)curr_bd->data_ptr;
-		rx_buf_obj->length = curr_bd->off_b_len & EMAC_RX_BD_BUF_SIZE;
-		rx_buf_obj->buf_token = curr_bd->buf_token;
-		curr_pkt->pkt_token = curr_pkt->buf_list->buf_token;
-		curr_pkt->num_bufs = 1;
-		curr_pkt->pkt_length =
-			(frame_status & EMAC_RX_BD_PKT_LENGTH_MASK);
 		emac_write(EMAC_RXCP(ch), emac_virt_to_phys(curr_bd));
 		++rxch->processed_bd;
 		last_bd = curr_bd;
@@ -2007,13 +2017,14 @@ static int emac_rx_bdproc(struct emac_priv *priv, u32 ch, u32 budget)
 
 		/* recycle BD */
 		emac_addbd_to_rx_queue(priv, ch, last_bd, new_buffer,
-				       new_buf_token);
-
-		/* return the packet to the user - BD ptr passed in
-		 * last parameter for potential *future* use */
-		spin_unlock_irqrestore(&priv->rx_lock, flags);
-		emac_net_rx_cb(priv, curr_pkt);
-		spin_lock_irqsave(&priv->rx_lock, flags);
+				new_buf_token);
+		if ((frame_status & EMAC_CPPI_RX_ERROR_FRAME) == 0) {
+			/* return the packet to the user - BD ptr passed in
+			 * last parameter for potential *future* use */
+			spin_unlock_irqrestore(&priv->rx_lock, flags);
+			emac_net_rx_cb(priv, curr_pkt);
+			spin_lock_irqsave(&priv->rx_lock, flags);
+		}
 		curr_bd = rxch->active_queue_head;
 		if (curr_bd) {
 			BD_CACHE_INVALIDATE(curr_bd, EMAC_BD_LENGTH_FOR_CACHE);
