@@ -470,7 +470,6 @@ struct emac_priv {
 	struct emac_rxch *rxch[EMAC_DEF_MAX_RX_CH];
 	u32 link; /* 1=link on, 0=link off */
 	u32 speed; /* 0=Auto Neg, 1=No PHY, 10,100, 1000 - mbps */
-	u32 duplex; /* Link duplex: 0=Half, 1=Full */
 	u32 rx_buf_size;
 	u32 isr_count;
 	u8 rmii_en;
@@ -725,29 +724,18 @@ static const struct ethtool_ops ethtool_ops = {
 static void emac_update_phystatus(struct emac_priv *priv)
 {
 	u32 mac_control;
-	u32 new_duplex;
-	u32 cur_duplex;
+	u32 new_duplex = (priv->phy_mask) ? priv->phydev->duplex : DUPLEX_FULL;
 	struct net_device *ndev = priv->ndev;
 
 	mac_control = emac_read(EMAC_MACCONTROL);
-	cur_duplex = (mac_control & EMAC_MACCONTROL_FULLDUPLEXEN) ?
-			DUPLEX_FULL : DUPLEX_HALF;
-	if (priv->phy_mask)
-		new_duplex = priv->phydev->duplex;
-	else
-		new_duplex = DUPLEX_FULL;
 
 	/* We get called only if link has changed (speed/duplex/status) */
-	if ((priv->link) && (new_duplex != cur_duplex)) {
-		priv->duplex = new_duplex;
-		if (DUPLEX_FULL == priv->duplex)
-			mac_control |= (EMAC_MACCONTROL_FULLDUPLEXEN);
-		else
-			mac_control &= ~(EMAC_MACCONTROL_FULLDUPLEXEN);
-	}
+	if (DUPLEX_FULL == new_duplex)
+		mac_control |= (EMAC_MACCONTROL_FULLDUPLEXEN);
+	else
+		mac_control &= ~(EMAC_MACCONTROL_FULLDUPLEXEN);
 
 	if (priv->speed == SPEED_1000 && (priv->version == EMAC_VERSION_2)) {
-		mac_control = emac_read(EMAC_MACCONTROL);
 		mac_control |= (EMAC_DM646X_MACCONTORL_GIG |
 				EMAC_DM646X_MACCONTORL_GIGFORCE);
 	} else {
@@ -2050,6 +2038,7 @@ end_emac_rx_bdproc:
 static int emac_hw_enable(struct emac_priv *priv)
 {
 	u32 ch, val, mbp_enable, mac_control;
+	u32 new_duplex = (priv->phy_mask) ? priv->phydev->duplex : DUPLEX_FULL;
 
 	/* Soft reset */
 	emac_write(EMAC_SOFTRESET, 1);
@@ -2064,7 +2053,8 @@ static int emac_hw_enable(struct emac_priv *priv)
 		(((EMAC_DEF_TXPRIO_FIXED) ? (EMAC_MACCONTROL_TXPTYPE) : 0x0) |
 		((priv->speed == 1000) ? EMAC_MACCONTROL_GIGABITEN : 0x0) |
 		((EMAC_DEF_TXPACING_EN) ? (EMAC_MACCONTROL_TXPACEEN) : 0x0) |
-		((priv->duplex == DUPLEX_FULL) ? 0x1 : 0));
+		((new_duplex == DUPLEX_FULL) ?
+				EMAC_MACCONTROL_FULLDUPLEXEN : 0));
 	emac_write(EMAC_MACCONTROL, mac_control);
 
 	mbp_enable =
@@ -2316,10 +2306,12 @@ static void emac_adjust_link(struct net_device *ndev)
 	spin_lock_irqsave(&priv->lock, flags);
 
 	if (phydev->link) {
+		u32 mac_control = emac_read(EMAC_MACCONTROL);
+		u32 cur_duplex = (mac_control & EMAC_MACCONTROL_FULLDUPLEXEN) ?
+				DUPLEX_FULL : DUPLEX_HALF;
 		/* check the mode of operation - full/half duplex */
-		if (phydev->duplex != priv->duplex) {
+		if (phydev->duplex != cur_duplex) {
 			new_state = 1;
-			priv->duplex = phydev->duplex;
 		}
 		if (phydev->speed != priv->speed) {
 			new_state = 1;
@@ -2334,7 +2326,6 @@ static void emac_adjust_link(struct net_device *ndev)
 		new_state = 1;
 		priv->link = 0;
 		priv->speed = 0;
-		priv->duplex = ~0;
 	}
 	if (new_state) {
 		emac_update_phystatus(priv);
@@ -2434,9 +2425,6 @@ static int emac_dev_open(struct net_device *ndev)
 		k++;
 	}
 
-	/* Start/Enable EMAC hardware */
-	emac_hw_enable(priv);
-
 	/* find the first phy */
 	priv->phydev = NULL;
 	if (priv->phy_mask) {
@@ -2464,19 +2452,20 @@ static int emac_dev_open(struct net_device *ndev)
 
 		priv->link = 0;
 		priv->speed = 0;
-		priv->duplex = ~0;
 
 		printk(KERN_INFO "%s: attached PHY driver [%s] "
 			"(mii_bus:phy_addr=%s, id=%x)\n", ndev->name,
 			priv->phydev->drv->name, dev_name(&priv->phydev->dev),
 			priv->phydev->phy_id);
 	} else{
-		/* No PHY , fix the link, speed and duplex settings */
+		/* No PHY , fix the link and speed settings */
 		priv->link = 1;
 		priv->speed = SPEED_100;
-		priv->duplex = DUPLEX_FULL;
 		emac_update_phystatus(priv);
 	}
+
+	/* Start/Enable EMAC hardware */
+	emac_hw_enable(priv);
 
 	if (!netif_running(ndev)) /* debug only - to avoid compiler warning */
 		emac_dump_regs(priv);
