@@ -177,11 +177,6 @@ static void davinci_source_power(struct musb *musb, int is_on, int immediate)
 	if (vbus_state == is_on)
 		return;
 	vbus_state = !is_on;		/* 0/1 vs "-1 == unknown/init" */
-#ifdef CONFIG_MACH_DAVINCI_XENON
-	gpio_set_value(GPIO(50),is_on^1);
-	immediate = 1;
-	printk(KERN_ERR "USB power %s\n",(is_on)? "on" : "off");
-#endif
 
 	if (machine_is_davinci_evm()) {
 		static DECLARE_WORK(evm_vbus_work, evm_deferred_drvvbus);
@@ -193,6 +188,12 @@ static void davinci_source_power(struct musb *musb, int is_on, int immediate)
 	}
 	if (immediate)
 		vbus_state = is_on;
+#endif
+#ifdef CONFIG_MACH_DAVINCI_XENON
+	if (is_on)
+		is_on = 1;
+	gpio_set_value(GPIO(50),is_on^1);
+	printk(KERN_ERR "USB power %s\n",(is_on)? "on" : "off");
 #endif
 }
 
