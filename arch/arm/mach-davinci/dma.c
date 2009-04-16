@@ -1412,6 +1412,15 @@ static int __init edma_probe(struct platform_device *pdev)
 			while (*noevent != -1)
 				set_bit(*noevent++, edma_info[j]->edma_noevent);
 		}
+		for (i = info->dsp_reserve_slot_min;
+				i <= info->dsp_reserve_slot_max; i++)
+			set_bit(i, edma_info[j]->edma_inuse);
+
+		for (i = info->dsp_reserve_channel_min;
+				i <= info->dsp_reserve_channel_max; i++)
+			if (test_bit(i, edma_info[j]->edma_noevent)) {
+				set_bit(i, edma_info[j]->edma_inuse);
+			}
 
 		sprintf(irq_name, "edma%d", j);
 		irq[j] = platform_get_irq_byname(pdev, irq_name);

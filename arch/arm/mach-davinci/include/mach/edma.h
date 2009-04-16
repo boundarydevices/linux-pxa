@@ -280,10 +280,15 @@ struct edma_soc_info {
 	unsigned	n_cc;
 	enum dma_event_q	default_queue;
 
-	/* list of channels with no even trigger; terminated by "-1" */
+	/* list of channels with no event trigger; terminated by "-1" */
 	const s8	*noevent;
 	const s8	(*queue_tc_mapping)[2];
 	const s8	(*queue_priority_mapping)[2];
+	u16		dsp_reserve_slot_min;
+	u16		dsp_reserve_slot_max;
+	/* only "no event" channels in range below are reserved */
+	u16		dsp_reserve_channel_min;
+	u16		dsp_reserve_channel_max;
 };
 
 #endif
