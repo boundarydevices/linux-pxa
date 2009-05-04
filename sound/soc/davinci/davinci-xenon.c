@@ -36,9 +36,11 @@
 #define NOTMUTED 1
 
 #if 1
-#define USE_FORMAT SND_SOC_DAIFMT_DSP_A | SND_SOC_DAIFMT_CBM_CFM
+#define AUDIO_FORMAT (SND_SOC_DAIFMT_DSP_A | \
+	SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_NB_NF)
 #else
-#define USE_FORMAT SND_SOC_DAIFMT_DSP_B | SND_SOC_DAIFMT_CBM_CFM
+#define AUDIO_FORMAT (SND_SOC_DAIFMT_DSP_B | \
+	SND_SOC_DAIFMT_CBM_CFM | SND_SOC_DAIFMT_NB_NF)
 #endif
 
 static int xenon_startup(struct snd_pcm_substream *substream)
@@ -65,13 +67,12 @@ static int xenon_hw_params(struct snd_pcm_substream *substream,
 	int ret = 0;
 
 	/* set codec DAI configuration */
-	ret = snd_soc_dai_set_fmt(codec_dai, USE_FORMAT);
+	ret = snd_soc_dai_set_fmt(codec_dai, AUDIO_FORMAT);
 	if (ret < 0)
 		return ret;
 
 	/* set cpu DAI configuration */
-	ret = snd_soc_dai_set_fmt(cpu_dai, USE_FORMAT |
-				       SND_SOC_DAIFMT_IB_NF);
+	ret = snd_soc_dai_set_fmt(cpu_dai, AUDIO_FORMAT);
 	if (ret < 0)
 		return ret;
 
