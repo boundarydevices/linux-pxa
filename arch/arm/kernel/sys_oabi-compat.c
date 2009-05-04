@@ -80,6 +80,7 @@
 #include <linux/eventpoll.h>
 #include <linux/sem.h>
 #include <linux/socket.h>
+#include <linux/mm.h>
 #include <linux/net.h>
 #include <linux/ipc.h>
 #include <linux/uaccess.h>
