@@ -64,7 +64,7 @@ module_param(on_flash_bbt, int, 0);
  * the bytes have to be consecutives to avoid
  * several NAND_CMD_RNDOUT during read
  */
-static struct nand_ecclayout atmel_oobinfo_large = {
+static const struct nand_ecclayout atmel_oobinfo_large __initconst = {
 	.eccbytes = 4,
 	.eccpos = {60, 61, 62, 63},
 	.oobfree = {
@@ -77,7 +77,7 @@ static struct nand_ecclayout atmel_oobinfo_large = {
  * the bytes have to be consecutives to avoid
  * several NAND_CMD_RNDOUT during read
  */
-static struct nand_ecclayout atmel_oobinfo_small = {
+static const struct nand_ecclayout atmel_oobinfo_small __initconst = {
 	.eccbytes = 4,
 	.eccpos = {0, 1, 2, 3},
 	.oobfree = {
@@ -192,7 +192,6 @@ static int atmel_nand_calculate(struct mtd_info *mtd,
 {
 	struct nand_chip *nand_chip = mtd->priv;
 	struct atmel_nand_host *host = nand_chip->priv;
-	uint32_t *eccpos = nand_chip->ecc.layout->eccpos;
 	unsigned int ecc_value;
 
 	/* get the first 2 ECC bytes */
@@ -222,7 +221,7 @@ static int atmel_nand_read_page(struct mtd_info *mtd,
 {
 	int eccsize = chip->ecc.size;
 	int eccbytes = chip->ecc.bytes;
-	uint32_t *eccpos = chip->ecc.layout->eccpos;
+	uint32_t *eccpos = chip->ecc.layout.eccpos;
 	uint8_t *p = buf;
 	uint8_t *oob = chip->oob_poi;
 	uint8_t *ecc_pos;
@@ -487,19 +486,23 @@ static int __init atmel_nand_probe(struct platform_device *pdev)
 		/* set ECC page size and oob layout */
 		switch (mtd->writesize) {
 		case 512:
-			nand_chip->ecc.layout = &atmel_oobinfo_small;
+			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_small,
+					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_528);
 			break;
 		case 1024:
-			nand_chip->ecc.layout = &atmel_oobinfo_large;
+			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_large,
+					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_1056);
 			break;
 		case 2048:
-			nand_chip->ecc.layout = &atmel_oobinfo_large;
+			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_large,
+					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_2112);
 			break;
 		case 4096:
-			nand_chip->ecc.layout = &atmel_oobinfo_large;
+			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_large,
+					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_4224);
 			break;
 		default:

@@ -456,7 +456,7 @@ static int cafe_nand_read_page(struct mtd_info *mtd, struct nand_chip *chip,
 	return 0;
 }
 
-static struct nand_ecclayout cafe_oobinfo_2048 = {
+static const struct nand_ecclayout cafe_oobinfo_2048 __devinitconst = {
 	.eccbytes = 14,
 	.eccpos = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
 	.oobfree = {{14, 50}}
@@ -491,7 +491,7 @@ static struct nand_bbt_descr cafe_bbt_mirror_descr_2048 = {
 	.pattern = cafe_mirror_pattern_2048
 };
 
-static struct nand_ecclayout cafe_oobinfo_512 = {
+static const struct nand_ecclayout cafe_oobinfo_512 __devinitconst = {
 	.eccbytes = 14,
 	.eccpos = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13},
 	.oobfree = {{14, 2}}
@@ -772,11 +772,13 @@ static int __devinit cafe_nand_probe(struct pci_dev *pdev,
 
 	/* Set up ECC according to the type of chip we found */
 	if (mtd->writesize == 2048) {
-		cafe->nand.ecc.layout = &cafe_oobinfo_2048;
+		memcpy(&cafe->nand.ecc.layout, &cafe_oobinfo_2048,
+				sizeof(cafe->nand.ecc.layout));
 		cafe->nand.bbt_td = &cafe_bbt_main_descr_2048;
 		cafe->nand.bbt_md = &cafe_bbt_mirror_descr_2048;
 	} else if (mtd->writesize == 512) {
-		cafe->nand.ecc.layout = &cafe_oobinfo_512;
+		memcpy(&cafe->nand.ecc.layout, &cafe_oobinfo_512,
+				sizeof(cafe->nand.ecc.layout));
 		cafe->nand.bbt_td = &cafe_bbt_main_descr_512;
 		cafe->nand.bbt_md = &cafe_bbt_mirror_descr_512;
 	} else {

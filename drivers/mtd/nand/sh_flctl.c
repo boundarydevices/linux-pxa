@@ -32,7 +32,7 @@
 #include <linux/mtd/partitions.h>
 #include <linux/mtd/sh_flctl.h>
 
-static struct nand_ecclayout flctl_4secc_oob_16 = {
+static const struct nand_ecclayout flctl_4secc_oob_16 __initconst = {
 	.eccbytes = 10,
 	.eccpos = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9},
 	.oobfree = {
@@ -40,7 +40,7 @@ static struct nand_ecclayout flctl_4secc_oob_16 = {
 		. length = 4} },
 };
 
-static struct nand_ecclayout flctl_4secc_oob_64 = {
+static const struct nand_ecclayout flctl_4secc_oob_64 __initconst = {
 	.eccbytes = 10,
 	.eccpos = {48, 49, 50, 51, 52, 53, 54, 55, 56, 57},
 	.oobfree = {
@@ -709,7 +709,7 @@ static void flctl_register_init(struct sh_flctl *flctl, unsigned long val)
 	writel(val, FLCMNCR(flctl));
 }
 
-static int flctl_chip_init_tail(struct mtd_info *mtd)
+static int __init flctl_chip_init_tail(struct mtd_info *mtd)
 {
 	struct sh_flctl *flctl = mtd_to_flctl(mtd);
 	struct nand_chip *chip = &flctl->chip;
@@ -746,10 +746,12 @@ static int flctl_chip_init_tail(struct mtd_info *mtd)
 
 	if (flctl->hwecc) {
 		if (mtd->writesize == 512) {
-			chip->ecc.layout = &flctl_4secc_oob_16;
+			memcpy(&chip->ecc.layout, &flctl_4secc_oob_16,
+					sizeof(chip->ecc.layout));
 			chip->badblock_pattern = &flctl_4secc_smallpage;
 		} else {
-			chip->ecc.layout = &flctl_4secc_oob_64;
+			memcpy(&chip->ecc.layout = &flctl_4secc_oob_64,
+					sizeof(chip->ecc.layout));
 			chip->badblock_pattern = &flctl_4secc_largepage;
 		}
 

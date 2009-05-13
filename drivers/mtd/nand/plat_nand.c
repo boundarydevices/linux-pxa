@@ -67,7 +67,9 @@ static int __devinit plat_nand_probe(struct platform_device *pdev)
 	data->chip.options |= pdata->chip.options;
 
 	data->chip.ecc.hwctl = pdata->ctrl.hwcontrol;
-	data->chip.ecc.layout = pdata->chip.ecclayout;
+	if (pdata->chip.ecclayout)
+		memcpy(&data->chip.ecc.layout, pdata->chip.ecclayout,
+				sizeof(data->chip.ecc.layout));
 	data->chip.ecc.mode = NAND_ECC_SOFT;
 
 	platform_set_drvdata(pdev, data);

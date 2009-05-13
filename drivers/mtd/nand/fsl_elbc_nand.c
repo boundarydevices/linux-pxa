@@ -85,28 +85,28 @@ struct fsl_elbc_ctrl {
 /* These map to the positions used by the FCM hardware ECC generator */
 
 /* Small Page FLASH with FMR[ECCM] = 0 */
-static struct nand_ecclayout fsl_elbc_oob_sp_eccm0 = {
+static const struct nand_ecclayout fsl_elbc_oob_sp_eccm0 __devinitconst = {
 	.eccbytes = 3,
 	.eccpos = {6, 7, 8},
 	.oobfree = { {0, 5}, {9, 7} },
 };
 
 /* Small Page FLASH with FMR[ECCM] = 1 */
-static struct nand_ecclayout fsl_elbc_oob_sp_eccm1 = {
+static const struct nand_ecclayout fsl_elbc_oob_sp_eccm1 __devinitconst = {
 	.eccbytes = 3,
 	.eccpos = {8, 9, 10},
 	.oobfree = { {0, 5}, {6, 2}, {11, 5} },
 };
 
 /* Large Page FLASH with FMR[ECCM] = 0 */
-static struct nand_ecclayout fsl_elbc_oob_lp_eccm0 = {
+static const struct nand_ecclayout fsl_elbc_oob_lp_eccm0 __devinitconst = {
 	.eccbytes = 12,
 	.eccpos = {6, 7, 8, 22, 23, 24, 38, 39, 40, 54, 55, 56},
 	.oobfree = { {1, 5}, {9, 13}, {25, 13}, {41, 13}, {57, 7} },
 };
 
 /* Large Page FLASH with FMR[ECCM] = 1 */
-static struct nand_ecclayout fsl_elbc_oob_lp_eccm1 = {
+static const struct nand_ecclayout fsl_elbc_oob_lp_eccm1 __devinitconst = {
 	.eccbytes = 12,
 	.eccpos = {8, 9, 10, 24, 25, 26, 40, 41, 42, 56, 57, 58},
 	.oobfree = { {1, 7}, {11, 13}, {27, 13}, {43, 13}, {59, 5} },
@@ -655,7 +655,7 @@ static int fsl_elbc_wait(struct mtd_info *mtd, struct nand_chip *chip)
 	return fsl_elbc_read_byte(mtd);
 }
 
-static int fsl_elbc_chip_init_tail(struct mtd_info *mtd)
+static int __devinit fsl_elbc_chip_init_tail(struct mtd_info *mtd)
 {
 	struct nand_chip *chip = mtd->priv;
 	struct fsl_elbc_mtd *priv = chip->priv;
@@ -700,8 +700,6 @@ static int fsl_elbc_chip_init_tail(struct mtd_info *mtd)
 	        chip->ecc.bytes);
 	dev_dbg(ctrl->dev, "fsl_elbc_init: nand->ecc.total = %d\n",
 	        chip->ecc.total);
-	dev_dbg(ctrl->dev, "fsl_elbc_init: nand->ecc.layout = %p\n",
-	        chip->ecc.layout);
 	dev_dbg(ctrl->dev, "fsl_elbc_init: mtd->flags = %08x\n", mtd->flags);
 	dev_dbg(ctrl->dev, "fsl_elbc_init: mtd->size = %lld\n", mtd->size);
 	dev_dbg(ctrl->dev, "fsl_elbc_init: mtd->erasesize = %d\n",
@@ -722,9 +720,9 @@ static int fsl_elbc_chip_init_tail(struct mtd_info *mtd)
 		if ((in_be32(&lbc->bank[priv->bank].br) & BR_DECC) ==
 		    BR_DECC_CHK_GEN) {
 			chip->ecc.size = 512;
-			chip->ecc.layout = (priv->fmr & FMR_ECCM) ?
-			                   &fsl_elbc_oob_lp_eccm1 :
-			                   &fsl_elbc_oob_lp_eccm0;
+			memcpy(&chip->ecc.layout, (priv->fmr & FMR_ECCM) ?
+				&fsl_elbc_oob_lp_eccm1 : &fsl_elbc_oob_lp_eccm0,
+				sizeof(chip->ecc.layout));
 			chip->badblock_pattern = &largepage_memorybased;
 		}
 	} else {
@@ -767,7 +765,7 @@ static void fsl_elbc_write_page(struct mtd_info *mtd,
 	ctrl->oob_poi = chip->oob_poi;
 }
 
-static int fsl_elbc_chip_init(struct fsl_elbc_mtd *priv)
+static int __devinit fsl_elbc_chip_init(struct fsl_elbc_mtd *priv)
 {
 	struct fsl_elbc_ctrl *ctrl = priv->ctrl;
 	struct fsl_lbc_regs __iomem *lbc = ctrl->regs;
@@ -810,8 +808,9 @@ static int fsl_elbc_chip_init(struct fsl_elbc_mtd *priv)
 	    BR_DECC_CHK_GEN) {
 		chip->ecc.mode = NAND_ECC_HW;
 		/* put in small page settings and adjust later if needed */
-		chip->ecc.layout = (priv->fmr & FMR_ECCM) ?
-				&fsl_elbc_oob_sp_eccm1 : &fsl_elbc_oob_sp_eccm0;
+		memcpy(&chip->ecc.layout, (priv->fmr & FMR_ECCM) ?
+				&fsl_elbc_oob_sp_eccm1 : &fsl_elbc_oob_sp_eccm0,
+				sizeof(chip->ecc.layout));
 		chip->ecc.size = 512;
 		chip->ecc.bytes = 3;
 	} else {

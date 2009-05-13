@@ -176,7 +176,9 @@ static int __devinit sharpsl_nand_probe(struct platform_device *pdev)
 	this->ecc.size = 256;
 	this->ecc.bytes = 3;
 	this->badblock_pattern = data->badblock_pattern;
-	this->ecc.layout = data->ecc_layout;
+	if (data->ecc_layout)
+		memcpy(&this->ecc.layout, data->ecc_layout,
+				sizeof(this->ecc.layout));
 	this->ecc.hwctl = sharpsl_nand_enable_hwecc;
 	this->ecc.calculate = sharpsl_nand_calculate_ecc;
 	this->ecc.correct = nand_correct_data;

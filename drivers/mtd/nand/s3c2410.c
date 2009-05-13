@@ -64,7 +64,7 @@ static const int clock_stop = 0;
 /* new oob placement block for use with hardware ecc generation
  */
 
-static struct nand_ecclayout nand_hw_eccoob = {
+static const struct nand_ecclayout nand_hw_eccoob = {
 	.eccbytes = 3,
 	.eccpos = {0, 1, 2},
 	.oobfree = {{8, 8}}
@@ -842,8 +842,9 @@ static void s3c2410_nand_init_chip(struct s3c2410_nand_info *info,
 		chip->ecc.mode	    = NAND_ECC_SOFT;
 	}
 
-	if (set->ecc_layout != NULL)
-		chip->ecc.layout = set->ecc_layout;
+	if (set->ecc_layout)
+		memcpy(&chip->ecc.layout, set->ecc_layout,
+				sizeof(chip->ecc.layout));
 
 	if (set->disable_ecc)
 		chip->ecc.mode	= NAND_ECC_NONE;
@@ -901,7 +902,8 @@ static void s3c2410_nand_update_chip(struct s3c2410_nand_info *info,
 	} else {
 		chip->ecc.size	    = 512;
 		chip->ecc.bytes	    = 3;
-		chip->ecc.layout    = &nand_hw_eccoob;
+		memcpy(&chip->ecc.layout, &nand_hw_eccoob,
+				sizeof(chip->ecc.layout));
 	}
 }
 

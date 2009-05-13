@@ -1111,13 +1111,13 @@ static int pxa3xx_nand_init_buff(struct pxa3xx_nand_info *info)
 	return 0;
 }
 
-static struct nand_ecclayout hw_smallpage_ecclayout = {
+static const struct nand_ecclayout hw_smallpage_ecclayout = {
 	.eccbytes = 6,
 	.eccpos = {8, 9, 10, 11, 12, 13 },
 	.oobfree = { {2, 6} }
 };
 
-static struct nand_ecclayout hw_largepage_ecclayout = {
+static const struct nand_ecclayout hw_largepage_ecclayout = {
 	.eccbytes = 24,
 	.eccpos = {
 		40, 41, 42, 43, 44, 45, 46, 47,
@@ -1151,9 +1151,11 @@ static void pxa3xx_nand_init_mtd(struct mtd_info *mtd,
 	this->ecc.size		= f->page_size;
 
 	if (f->page_size == 2048)
-		this->ecc.layout = &hw_largepage_ecclayout;
+		memcpy(&this->ecc.layout, &hw_largepage_ecclayout,
+				sizeof(this->ecc.layout));
 	else
-		this->ecc.layout = &hw_smallpage_ecclayout;
+		memcpy(&this->ecc.layout, &hw_smallpage_ecclayout,
+				sizeof(this->ecc.layout));
 
 	this->chip_delay = 25;
 }

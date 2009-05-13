@@ -141,7 +141,7 @@ static struct rs_control *rs_decoder;
 /*
  *      hardware specific Out Of Band information
  */
-static struct nand_ecclayout rtc_from4_nand_oobinfo = {
+static const struct nand_ecclayout rtc_from4_nand_oobinfo __initconst = {
 	.eccbytes = 32,
 	.eccpos = {
 		   0, 1, 2, 3, 4, 5, 6, 7,
@@ -532,7 +532,8 @@ static int __init rtc_from4_init(void)
 	/* return the status of extra status and ECC checks */
 	this->errstat = rtc_from4_errstat;
 	/* set the nand_oobinfo to support FPGA H/W error detection */
-	this->ecc.layout = &rtc_from4_nand_oobinfo;
+	memcpy(&this->ecc.layout, &rtc_from4_nand_oobinfo,
+			sizeof(this->ecc.layout));
 	this->ecc.hwctl = rtc_from4_enable_hwecc;
 	this->ecc.calculate = rtc_from4_calculate_ecc;
 	this->ecc.correct = rtc_from4_correct_data;

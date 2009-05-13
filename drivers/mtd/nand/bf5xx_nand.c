@@ -101,7 +101,7 @@ static struct nand_bbt_descr bootrom_bbt = {
 	.pattern = bbt_pattern,
 };
 
-static struct nand_ecclayout bootrom_ecclayout = {
+static const struct nand_ecclayout bootrom_ecclayout __devinitconst = {
 	.eccbytes = 24,
 	.eccpos = {
 		0x8 * 0, 0x8 * 0 + 1, 0x8 * 0 + 2,
@@ -760,7 +760,8 @@ static int __devinit bf5xx_nand_probe(struct platform_device *pdev)
 	if (hardware_ecc) {
 #ifdef CONFIG_MTD_NAND_BF5XX_BOOTROM_ECC
 		chip->badblock_pattern = &bootrom_bbt;
-		chip->ecc.layout = &bootrom_ecclayout;
+		memcpy(&chip->ecc.layout, &bootrom_ecclayout,
+				sizeof(chip->ecc.layout));
 #endif
 
 		if (plat->page_size == NFC_PG_SIZE_256) {

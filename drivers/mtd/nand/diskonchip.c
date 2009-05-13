@@ -37,7 +37,7 @@
 #define CONFIG_MTD_NAND_DISKONCHIP_PROBE_ADDRESS 0
 #endif
 
-static unsigned long __initdata doc_locations[] = {
+static const unsigned long doc_locations[] __initconst = {
 #if defined (__alpha__) || defined(__i386__) || defined(__x86_64__)
 #ifdef CONFIG_MTD_NAND_DISKONCHIP_PROBE_HIGH
 	0xfffc8000, 0xfffca000, 0xfffcc000, 0xfffce000,
@@ -1049,7 +1049,7 @@ static int doc200x_correct_data(struct mtd_info *mtd, u_char *dat,
  * safer.  The only problem with it is that any code that parses oobfree must
  * be able to handle out-of-order segments.
  */
-static struct nand_ecclayout doc200x_oobinfo = {
+static const struct nand_ecclayout doc200x_oobinfo __initconst = {
 	.eccbytes = 6,
 	.eccpos = {0, 1, 2, 3, 4, 5},
 	.oobfree = {{8, 8}, {6, 2}}
@@ -1651,7 +1651,7 @@ static int __init doc_probe(unsigned long physadr)
 	nand->ecc.calculate	= doc200x_calculate_ecc;
 	nand->ecc.correct	= doc200x_correct_data;
 
-	nand->ecc.layout	= &doc200x_oobinfo;
+	memcpy(&nand->ecc.layout, &doc200x_oobinfo, sizeof(nand->ecc.layout));
 	nand->ecc.mode		= NAND_ECC_HW_SYNDROME;
 	nand->ecc.size		= 512;
 	nand->ecc.bytes		= 6;
