@@ -59,32 +59,6 @@ module_param(on_flash_bbt, int, 0);
 
 #include "atmel_nand_ecc.h"	/* Hardware ECC registers */
 
-/* oob layout for large page size
- * bad block info is on bytes 0 and 1
- * the bytes have to be consecutives to avoid
- * several NAND_CMD_RNDOUT during read
- */
-static const struct nand_ecclayout atmel_oobinfo_large __initconst = {
-	.eccbytes = 4,
-	.eccpos = {60, 61, 62, 63},
-	.oobfree = {
-		{2, 58}
-	},
-};
-
-/* oob layout for small page size
- * bad block info is on bytes 4 and 5
- * the bytes have to be consecutives to avoid
- * several NAND_CMD_RNDOUT during read
- */
-static const struct nand_ecclayout atmel_oobinfo_small __initconst = {
-	.eccbytes = 4,
-	.eccpos = {0, 1, 2, 3},
-	.oobfree = {
-		{6, 10}
-	},
-};
-
 struct atmel_nand_host {
 	struct nand_chip	nand_chip;
 	struct mtd_info		mtd;
@@ -486,23 +460,15 @@ static int __init atmel_nand_probe(struct platform_device *pdev)
 		/* set ECC page size and oob layout */
 		switch (mtd->writesize) {
 		case 512:
-			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_small,
-					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_528);
 			break;
 		case 1024:
-			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_large,
-					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_1056);
 			break;
 		case 2048:
-			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_large,
-					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_2112);
 			break;
 		case 4096:
-			memcpy(&nand_chip->ecc.layout, &atmel_oobinfo_large,
-					sizeof(nand_chip->ecc.layout));
 			ecc_writel(host->ecc, MR, ATMEL_ECC_PAGESIZE_4224);
 			break;
 		default:
