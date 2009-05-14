@@ -52,50 +52,6 @@
 #include <linux/mtd/partitions.h>
 #endif
 
-/* Define default oob placement schemes for large and small page devices */
-static struct nand_ecclayout nand_oob_8 = {
-	.eccbytes = 3,
-	.eccpos = {0, 1, 2},
-	.oobfree = {
-		{.offset = 3,
-		 .length = 2},
-		{.offset = 6,
-		 .length = 2}}
-};
-
-static struct nand_ecclayout nand_oob_16 = {
-	.eccbytes = 6,
-	.eccpos = {0, 1, 2, 3, 6, 7},
-	.oobfree = {
-		{.offset = 8,
-		 . length = 8}}
-};
-
-static struct nand_ecclayout nand_oob_64 = {
-	.eccbytes = 24,
-	.eccpos = {
-		   40, 41, 42, 43, 44, 45, 46, 47,
-		   48, 49, 50, 51, 52, 53, 54, 55,
-		   56, 57, 58, 59, 60, 61, 62, 63},
-	.oobfree = {
-		{.offset = 2,
-		 .length = 38}}
-};
-
-static struct nand_ecclayout nand_oob_128 = {
-	.eccbytes = 48,
-	.eccpos = {
-		   80, 81, 82, 83, 84, 85, 86, 87,
-		   88, 89, 90, 91, 92, 93, 94, 95,
-		   96, 97, 98, 99, 100, 101, 102, 103,
-		   104, 105, 106, 107, 108, 109, 110, 111,
-		   112, 113, 114, 115, 116, 117, 118, 119,
-		   120, 121, 122, 123, 124, 125, 126, 127},
-	.oobfree = {
-		{.offset = 2,
-		 .length = 78}}
-};
-
 static int nand_get_device(struct nand_chip *chip, struct mtd_info *mtd,
 			   int new_state);
 
@@ -2671,7 +2627,10 @@ int nand_scan_ident(struct mtd_info *mtd, int maxchips)
  */
 int nand_scan_tail(struct mtd_info *mtd)
 {
-	int i;
+	int i, len, bit, next_bit;
+	int bad_block_marker_offset;
+	int bad_block_marker_length;
+	DECLARE_BITMAP(in_use, 256);
 	struct nand_chip *chip = mtd->priv;
 
 	if (!(chip->options & NAND_OWN_BUFFERS))
@@ -2784,9 +2743,6 @@ int nand_scan_tail(struct mtd_info *mtd)
 	}
 
 	/*
-<<<<<<< HEAD:drivers/mtd/nand/nand_base.c
-=======
->>>>>>> mtd: nand: move layout structure into nand_ecc_ctrl:drivers/mtd/nand/nand_base.c
 	 * Set the number of read / write steps for one page depending on ECC
 	 * mode
 	 */
@@ -2796,46 +2752,138 @@ int nand_scan_tail(struct mtd_info *mtd)
 		BUG();
 	}
 	chip->ecc.total = chip->ecc.steps * chip->ecc.bytes;
+	pr_info("%s ecc.total = %d, ecc.steps = %d, ecc.bytes = %d, "
+		"ecc.size = %d, writesize = %d\n",
+		__func__, chip->ecc.total, chip->ecc.steps, chip->ecc.bytes,
+		chip->ecc.size, mtd->writesize);
+try_again:
+	bad_block_marker_offset = NAND_LARGE_BADBLOCK_POS;
+	bad_block_marker_length = 2;
+	if (mtd->oobsize == 8) {
+		bad_block_marker_offset = NAND_SMALL_BADBLOCK_POS;
+		bad_block_marker_length = 1;
+	} else if (mtd->oobsize == 16) {
+		bad_block_marker_offset = 4;	/* length still 2 */
+	}
+	if (chip->bbt_td) {
+		bad_block_marker_offset = chip->bbt_td->offs;
+		bad_block_marker_length = chip->bbt_td->len;
+	}
+	if (chip->badblock_pattern) {
+		bad_block_marker_offset = chip->badblock_pattern->offs;
+		bad_block_marker_length = chip->badblock_pattern->len;
+	}
+	/* Mark no oob bytes in_use */
+	memset(in_use, 0, 256/8);
 
-	/*
-	 * If no default placement scheme is given, select an appropriate one
-	 */
-	if (!chip->ecc.layout.eccbytes) {
-		const struct nand_ecclayout *layout = NULL;
-		switch (mtd->oobsize) {
-		case 8:
-			layout = &nand_oob_8;
+	/* Mark bad block indicator oob byte in_use */
+	while (bad_block_marker_length--)
+		__set_bit(bad_block_marker_offset++, in_use);
+
+	/* Mark reserved oobfree entries in_use */
+	chip->ecc.layout.oobavail = 0;
+	i = 0;
+	do {
+		len = chip->ecc.layout.oobfree[i].length;
+		if (!len)
 			break;
-		case 16:
-			layout = &nand_oob_16;
-			break;
-		case 64:
-			layout = &nand_oob_64;
-			break;
-		case 128:
-			layout = &nand_oob_128;
-			break;
-		default:
-			printk(KERN_WARNING "No oob scheme defined for "
-			       "oobsize %d\n", mtd->oobsize);
-			BUG();
+		bit = chip->ecc.layout.oobfree[i].offset;
+		if (bit + len > mtd->oobsize) {
+			pr_warning("oob byte(%d) >= oobsize(%d)\n",
+					bit + len - 1, mtd->oobsize);
+			len = mtd->oobsize - bit;
+			if (len < 0)
+				len = 0;
+			chip->ecc.layout.oobfree[i].length = len;
+			if (!len)
+				break;
 		}
-		if (layout)
-			memcpy(&chip->ecc.layout, layout, sizeof(*layout));
+		chip->ecc.layout.oobavail += len;
+		while (len) {
+			if (__test_and_set_bit(bit, in_use))
+				pr_warning("free oob byte(%d) in use\n", bit);
+			bit++;
+			len--;
+		}
+		i++;
+	} while (i < MTD_MAX_OOBFREE_ENTRIES);
+
+	if (chip->ecc.layout.eccbytes >= chip->ecc.total) {
+		/* Mark eccpos bytes in_use */
+		int j = 0;
+		if (chip->ecc.layout.eccbytes > chip->ecc.total)
+			pr_warning("%s: layout.eccbytes(%d) > ecc.total(%d),"
+				" some oob space will be wasted\n", __func__,
+				chip->ecc.layout.eccbytes, chip->ecc.total);
+		for (len = chip->ecc.layout.eccbytes; len; len--) {
+			bit = chip->ecc.layout.eccpos[j++];
+			if (bit >= mtd->oobsize) {
+				pr_warning("%s: eccpos(%d) too big, "
+						"defaulting\n", __func__, bit);
+				chip->ecc.layout.eccbytes = 0;
+				goto try_again;
+			} else if (__test_and_set_bit(bit, in_use))
+				pr_warning("%s: eccpos(%d) in use\n", __func__,
+					bit);
+		}
+	} else {
+		int j;
+		if (chip->ecc.layout.eccbytes)
+			pr_warning("%s: layout.eccbytes(%d) < ecc.total(%d),"
+				" eccpos will default\n", __func__,
+				chip->ecc.layout.eccbytes, chip->ecc.total);
+		/*
+		 * Choose the default ecc byte positions.
+		 * If the 1st oob byte is free, use the lowest
+		 * oob bytes for the ecc. Otherwise, use the
+		 * highest oob bytes for the ecc.
+		 */
+		if (!test_bit(0, in_use))
+			bit = 0;
+		else {
+			bit = mtd->oobsize;
+			j = chip->ecc.total;
+			while (bit) {
+				bit--;
+				if (!test_bit(bit, in_use)) {
+					j--;
+					if (!j)
+						break;
+				}
+			}
+		}
+		j = 0;
+		while (j < chip->ecc.total) {
+			bit = find_next_zero_bit(in_use, mtd->oobsize, bit);
+			if (bit == mtd->oobsize) {
+				pr_warning("%s: oobfull\n", __func__);
+				break;
+			}
+			__set_bit(bit, in_use);
+			chip->ecc.layout.eccpos[j++] = bit++;
+		}
+		chip->ecc.layout.eccbytes = j;
 	}
 
-	/*
-	 * The number of bytes available for a client to place data into
-	 * the out of band area
-	 */
-	chip->ecc.layout->oobavail = 0;
-	for (i = 0; chip->ecc.layout->oobfree[i].length
-			&& i < ARRAY_SIZE(chip->ecc.layout->oobfree); i++)
-		chip->ecc.layout->oobavail +=
-			chip->ecc.layout->oobfree[i].length;
-	mtd->oobavail = chip->ecc.layout->oobavail;
+	/* Add all oob bytes not in_use to the oobfree list */
+	next_bit = 0;
+	while (i < MTD_MAX_OOBFREE_ENTRIES) {
+		bit = find_next_zero_bit(in_use, mtd->oobsize, next_bit);
+		if (bit == mtd->oobsize)
+			break;
+		next_bit = find_next_bit(in_use, mtd->oobsize, bit);
+		pr_info("%s oobfree[%d].offset=%d, .length=%d\n", __func__, i,
+				bit, next_bit - bit);
+		chip->ecc.layout.oobfree[i].offset = bit;
+		chip->ecc.layout.oobavail +=
+			chip->ecc.layout.oobfree[i++].length = next_bit - bit;
+	}
 
-	/*
+	if (i < MTD_MAX_OOBFREE_ENTRIES) {
+		chip->ecc.layout.oobfree[i].offset = 0;
+		chip->ecc.layout.oobfree[i].length = 0;
+	}
+	mtd->oobavail = chip->ecc.layout.oobavail;
 
 	/*
 	 * Allow subpage writes up to ecc.steps. Not possible for MLC
