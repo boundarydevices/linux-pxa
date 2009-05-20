@@ -510,9 +510,9 @@ static struct edma_soc_info dm644x_edma_info[] = {
 		.noevent		= dma_chan_dm644x_no_event,
 		.queue_tc_mapping	= queue_tc_mapping,
 		.queue_priority_mapping	= queue_priority_mapping,
-		/* reserve slots 78-109 for dsp use */
-		.dsp_reserve_slot_min	= 78,
-		.dsp_reserve_slot_max	= 78 + 31,
+		/* reserve slots 76-107 for dsp use */
+		.dsp_reserve_slot_min	= 76,
+		.dsp_reserve_slot_max	= 76 + 31,
 		/* reserve channels 0, 1, 12, 13 for dsp use */
 		.dsp_reserve_channel_min = 0,
 		.dsp_reserve_channel_max = 13,
