@@ -199,6 +199,7 @@ static void davinci_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 	unsigned int mask;
 	do {
 		int irqBase;
+		unsigned cur_level;
 		davinci_irq_writel((1 << (irq&0x1f)), IRQ_REG1_OFFSET);
 		mask = __raw_readl(&g->intstat);
 		/* remove status bits not relevent to this interrrupt */
@@ -210,14 +211,23 @@ static void davinci_gpio_demux_handler(unsigned int irq, struct irq_desc *desc)
 			break;
 		/* acknowledge changes */
 		__raw_writel(mask, &g->intstat);
+		cur_level = g->in_data;
 		irqBase = IRQ_GPIO(8)-8 + ((index&~0x1)<<4);
 		do {
 			/* subtract 1 because ffs will
 			 * return 1-32 instead of 0-31
 			 */
 			int i = ffs(mask) - 1;
+			unsigned m = (1<<i);
+			mask &= ~m;
+			if (cur_level & m) {
+				if (!(GPIO_IRQ_rising_edge[(index >> 1)] & m))
+					continue;
+			} else {
+				if (!(GPIO_IRQ_falling_edge[(index >> 1)] & m))
+					continue;
+			}
 			desc_handle_irq(irqBase+i, irq_desc+irqBase+i);
-			mask &= ~(1<<i);
 		} while (mask);
 	} while (1);
 }
