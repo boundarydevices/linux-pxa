@@ -56,6 +56,34 @@ typedef struct fb_set_start {
 #define FBIO_RESIZER		_IOW('F', 0x26, struct vpfe_resizer_params)
 #define FBIO_SYNC		_IOW('F', 0x27, u_int32_t)
 #define FBIO_FILLRECT		_IOW('F', 0x28, struct fb_fillrect)
+struct lcd_panel_info_t {
+	char const	*name ;
+	unsigned long	pixclock;
+
+	unsigned short	xres;
+	unsigned short	yres;
+	unsigned char	pclk_redg;
+	unsigned char	hsyn_acth;
+	unsigned char	vsyn_acth;
+	unsigned char	oepol_actl;
+	unsigned short	hsync_len;
+	unsigned short	left_margin;
+	unsigned short	right_margin;
+	unsigned short	vsync_len;
+	unsigned short	upper_margin;
+	unsigned short	lower_margin;
+	unsigned char	active;		/* active matrix (TFT) LCD */
+	unsigned char	crt;		/* 1 == CRT, not LCD */
+	unsigned char	rotation;
+};
+struct vpbe_panel_from_hsync {
+	struct lcd_panel_info_t panel;	/* Make sure panel.name is passed a 32 char name buffer */
+	unsigned long	real_clock;
+	unsigned char encperpix_m;	/* This is an input parameter, zero means use default */
+	unsigned char encperpix_d;	/* This is an input parameter, zero means use default */
+};
+int calc_settings_from_hsync_vsync(struct vpbe_panel_from_hsync *panel);
+#define FBIO_PANEL_FROM_HSYNC		_IOW('F', 0x29, struct vpbe_panel_from_hsync)
 
 #define FBIO_ENABLE_DISABLE_WIN		_IOW('F', 0x30, unsigned char)
 
