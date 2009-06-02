@@ -1202,6 +1202,78 @@ static int scan_for_dmt_entry(struct lcd_panel_info_t *panel, u32 v_total,
 			best->name, best_error, hperiod);
 	return 0;
 }
+/*
+ * This gets the closest entry.
+ * Some video drivers are off by 1 line
+ */
+static int scan_for_dmt_entry2(struct lcd_panel_info_t *panel, u32 v_total,
+		u32 hperiod)
+{
+	const struct lcd_panel_info_t *p = lcd_panels_;
+	const struct lcd_panel_info_t *best = NULL;
+	u32 best_vline_error = ~0;
+	u32 best_error = ~0;
+	int i;
+	u32 htotal;
+	for (i = 0; i < num_lcd_panels; i++, p++ ) {
+		u32 htot, vtot;
+		u32 cur_hperiod;
+		u32 error;
+		u64 tmp;
+		if (p->name[0] != 'd') continue;
+		if (p->name[1] != 'm') continue;
+		if (p->name[2] != 't') continue;
+		vtot = p->upper_margin + p->yres + p->lower_margin
+			+ p->vsync_len;
+		error = (vtot >= v_total) ? (vtot - v_total) : (v_total - vtot);
+		if (best_vline_error < error) continue;
+		if (best_vline_error > error) {
+			best_vline_error = error;
+			best_error = ~0;
+		}
+		htot = p->left_margin + p->xres + p->right_margin
+			+ p->hsync_len;
+		tmp = htot;
+		tmp *= 1000000000;
+		/* nanoseconds/line */
+		cur_hperiod = do_divq(tmp, p->pixclock);
+		error = (cur_hperiod >= hperiod) ? (cur_hperiod - hperiod) :
+				(hperiod - cur_hperiod);
+		if (best_error > error) {
+			best = p;
+			best_error = error;
+		}
+	}
+	if (!best) {
+		return -1;
+	}
+	panel->name = best->name;
+	panel->pclk_redg = best->pclk_redg;
+	panel->oepol_actl = best->oepol_actl;
+	panel->active = best->active;
+	panel->crt = best->crt;
+
+	panel->xres = best->xres;
+	panel->hsync_len = best->hsync_len;
+	panel->left_margin = best->left_margin;
+	panel->right_margin = best->right_margin;
+
+	panel->yres = best->yres;
+	panel->lower_margin = best->lower_margin;
+	panel->upper_margin = v_total - panel->yres - panel->vsync_len - panel->lower_margin;
+	if (((int)panel->upper_margin) < 1) {
+		panel->upper_margin = 1;
+		panel->lower_margin = v_total - panel->yres - panel->vsync_len - 1;
+		if (((int)panel->lower_margin) < 1)
+			return -1;
+	}
+	htotal = panel->xres + panel->hsync_len +
+			panel->left_margin + panel->right_margin;
+	panel->pixclock = calc_pixclock(htotal, hperiod);
+	if (0) printk(KERN_ERR "found %s, error=%i ns, hperiod=%i ns\n",
+			best->name, best_error, hperiod);
+	return 0;
+}
 
 void calc_cvt_settings(struct lcd_panel_info_t *panel, u32 v_total, u32 hperiod)
 {
@@ -1423,11 +1495,14 @@ static int calc_work(struct vpbe_panel_from_hsync *vpbe_panel,
 					&& (panel->vsync_len == 3))
 				if (!calc_gtf_settings(panel, v_total, hperiod))
 					break;
-			printk(KERN_ERR "*** warning!!! **** weird panel,"
+			panel->weird = 1;
+			if (0) printk(KERN_ERR "*** warning!!! **** weird panel,"
 					" hsync=%u, vsync=%u, vsync_len=%u,"
 					" v_total=%u, hperiod=%u ns\n",
 					panel->hsyn_acth, panel->vsyn_acth,
 					panel->vsync_len, v_total, hperiod);
+			if (scan_for_dmt_entry2(panel, v_total, hperiod)==0)
+				break;
 		}
 		calc_cvt_settings(panel, v_total, hperiod);
 	} while (0);

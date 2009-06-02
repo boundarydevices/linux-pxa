@@ -75,6 +75,7 @@ struct lcd_panel_info_t {
 	unsigned char	active;		/* active matrix (TFT) LCD */
 	unsigned char	crt;		/* 1 == CRT, not LCD */
 	unsigned char	rotation;
+	unsigned char	weird;		/* Setting are just a guess */
 };
 struct vpbe_panel_from_hsync {
 	struct lcd_panel_info_t panel;	/* Make sure panel.name is passed a 32 char name buffer */
