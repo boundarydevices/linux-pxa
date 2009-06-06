@@ -24,6 +24,8 @@
 
 #include <mach/psc.h>
 #include <mach/cputype.h>
+#include <mach/sram.h>
+#include <asm/cacheflush.h>
 #include "clock.h"
 
 static LIST_HEAD(clocks);
@@ -114,6 +116,107 @@ static void propagate_rate(struct clk *root)
 			clk->rate = clk->recalc(clk);
 		propagate_rate(clk);
 	}
+}
+
+void reset_pll2(u32 pll_mult, u32 pll_div1, u32 pll_div2, void __iomem *rtn,
+		void __iomem *mmbase, void __iomem *pllbase,
+		void __iomem *m2base, void __iomem *ddr2base);
+void copy_reset_pll2_routine(unsigned * dest);
+#define GOSET	1
+#define GOSTAT	1
+
+static unsigned long clk_sysclk_recalc(struct clk *clk);
+static unsigned long clk_pllclk_recalc(struct clk *clk);
+
+void clk_reinit_pll2(int pll_mult, int pll_div1, int pll_div2)
+{
+	u32 v;
+	struct clk	*clk;
+	struct pll_data *pll;
+	void __iomem *pllbase;
+	clk = clk_get(NULL, "pll2");
+	if (!clk)
+		return;
+	pll = clk->pll_data;
+	if (!pll)
+		return;
+	pllbase = pll->base;
+	if (!pllbase)
+		return;
+	pll_mult--;
+	pll_div1--;
+	pll_div2--;
+
+	v = __raw_readl(pllbase + PLLM);
+	if (v != pll_mult) {
+		dma_addr_t iram_phys = 0;
+		void *iram_virt = NULL;
+		unsigned int iram_size = 0x800;
+		iram_virt = sram_alloc(iram_size, &iram_phys);
+		if (iram_virt) {
+			void __iomem *iram_code;
+			void __iomem *mmbase;
+			void __iomem *m2base;
+			void __iomem *ddr2base;
+			struct clk	*tclk;
+			/*
+			 * + 4 to skip the reset vector as a read from 0 is
+			 * always branch instruction
+			 */
+			copy_reset_pll2_routine(iram_virt + 4);
+			/*
+			 * 0x0 and 0x8000 point to same 16k of TCM
+			 * 0x0 for instruction access, 0x8000 for data
+			 */
+			iram_code = ioremap((iram_phys - 0x8000) & ~0xfff,
+					2*4096);
+#define	MM_BASE	0x20000000
+#define M2_BASE 0x01c41000
+#define DDR2_MEM_BASE 0x80000000
+
+			mmbase = ioremap(MM_BASE, 4096);
+			m2base = ioremap(M2_BASE, 4096);
+			ddr2base = ioremap(DDR2_MEM_BASE, 4096);
+
+			if (iram_code && mmbase && m2base && ddr2base) {
+				void __iomem *rtn = iram_code +
+					(iram_phys & 0xfff) + 4;
+				unsigned long flags;
+
+				spin_lock_irqsave(&clockfw_lock, flags);
+				flush_cache_all();
+				reset_pll2(pll_mult, pll_div1, pll_div2, rtn,
+						mmbase, pllbase, m2base, ddr2base);
+				spin_unlock_irqrestore(&clockfw_lock, flags);
+			}
+			iounmap(iram_code);
+			iounmap(mmbase);
+			iounmap(m2base);
+			iounmap(ddr2base);
+			sram_free(iram_virt, iram_size);
+			clk_pllclk_recalc(clk);
+			tclk = clk_get(NULL, "pll2_sysclk1");
+			if (tclk) {
+				clk_sysclk_recalc(tclk);
+				clk_put(tclk);
+			}
+			tclk = clk_get(NULL, "pll2_sysclk2");
+			if (tclk) {
+				clk_sysclk_recalc(tclk);
+				clk_put(tclk);
+			}
+		}
+	} else if (__raw_readl(pllbase + PLLDIV1) != (pll_div1 | 0x8000)) {
+		/*
+		 * Changing only the pixel clock divisor
+		 */
+		while (__raw_readl(pllbase + PLLSTAT) & GOSTAT);
+		__raw_writel(pll_div1 | 0x8000, pllbase + PLLDIV1);
+
+		__raw_writel(GOSET, pllbase + PLLCMD);
+		while (__raw_readl(pllbase + PLLSTAT) & GOSTAT);
+	}
+	clk_put(clk);
 }
 
 int clk_set_rate(struct clk *clk, unsigned long rate)
