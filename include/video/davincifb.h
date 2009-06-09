@@ -250,5 +250,6 @@ typedef struct vpbe_backg_color {
 #define FBIO_SET_START			_IOW('F', 0x66, struct fb_set_start)
 
 #define FBIO_INIT_PANEL			_IOW('F', 0x67, struct lcd_panel_info_t)
+#define FBIO_GET_CURRENT_PANEL_SETTINGS	_IOR('F', 0x68, struct lcd_panel_info_t)
 
 #endif /* _DAVINCIFB_H_ */
