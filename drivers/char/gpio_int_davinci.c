@@ -25,6 +25,7 @@
 #include <mach/irqs.h>
 #include <linux/gpio_int_davinci.h>
 #include <linux/irq.h>
+#include <mach/gpio.h>
 
 #define DRIVER_NAME "dav_gpio_int"
 
@@ -194,7 +195,7 @@ static int gpio_ioctl(struct inode *inode, struct file *file,
 }
 
 // interrupt handler
-static int interrupt_handler(int irq, void *data)
+static irqreturn_t interrupt_handler(int irq, void *data)
 {
 	atomic_inc(&counter);
 	return IRQ_HANDLED;
@@ -228,6 +229,8 @@ void timer_fn(unsigned long arg)
 // initialize module (and interrupt)
 static int __init gpio_init_module (void) {
 	int i;
+	struct gpio_controller *ctrl = __gpio_to_controller(gpio_number);
+	u32 const mask = __gpio_mask(gpio_number);
 	
 	i = register_chrdev (gpio_major, DRIVER_NAME, &gpio_fops);
 	if (i < 0){
@@ -242,6 +245,8 @@ static int __init gpio_init_module (void) {
 		printk(KERN_ERR __FILE__ ": irq %d unavailable\n\r", IRQ_GPIO(gpio_number));
 	}
 	set_irq_type(IRQ_GPIO(12), IRQ_TYPE_EDGE_FALLING);
+	ctrl->set_rising |= mask;
+	ctrl->set_falling |= mask;
 
 	memset(&timer_data,0,sizeof(timer_data));
         init_waitqueue_head(&timer_data.wait_queue);
