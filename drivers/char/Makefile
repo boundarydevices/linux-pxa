@@ -99,6 +99,7 @@ obj-$(CONFIG_CS5535_GPIO)	+= cs5535_gpio.o
 obj-$(CONFIG_GPIO_TB0219)	+= tb0219.o
 obj-$(CONFIG_TELCLOCK)		+= tlclk.o
 obj-$(CONFIG_GPIO_INT_DAVINCI)	+= gpio_int_davinci.o
+obj-$(CONFIG_SAS_8250)		+= sas8250.o
 obj-$(CONFIG_MWAVE)		+= mwave/
 obj-$(CONFIG_AGP)		+= agp/
 obj-$(CONFIG_PCMCIA)		+= pcmcia/

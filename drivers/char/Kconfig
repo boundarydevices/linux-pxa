@@ -1113,6 +1113,9 @@ config TELCLOCK
 config GPIO_INT_DAVINCI
 	tristate "Davinci GPIO interrupt counter"
 
+config SAS_8250
+	tristate "SAS 8250 driver"
+
 config DEVPORT
 	bool
 	depends on !M68K
