@@ -38,6 +38,10 @@ struct user_data ;
 struct sas8250_dev {
 	unsigned irq ;
 	unsigned io_address ;
+	unsigned baud_rate ;
+	u8	 data_bits ;
+	char	 parity ;
+	u8	 stop_bits ;
 	atomic_t use_count ;
 	unsigned interrupts ;
 	unsigned parity_errs ;
@@ -158,6 +162,50 @@ static enum hrtimer_restart rx_timeout(struct hrtimer *hrtimer)
 	return HRTIMER_NORESTART;
 }
 
+struct baud_divisor {
+   unsigned long baud ;
+   unsigned char dlh ;
+   unsigned char dll ;
+};
+
+#define MSB(__d) ((u8)((__d)>>8))
+#define LSB(__d) ((u8)__d)
+
+#define DIVISOR(__d) MSB(__d), LSB(__d)
+
+static struct baud_divisor const divisors[] = {
+	{ 2400, DIVISOR(703) }
+,	{ 4800, DIVISOR(352) }
+,	{ 9600, DIVISOR(176) }
+,	{ 19200, DIVISOR(88) }
+,	{ 38400, DIVISOR(44) }
+,	{ 56000, DIVISOR(30) }
+,	{ 128000, DIVISOR(13) }
+};
+
+static unsigned num_divisors = sizeof(divisors)/sizeof(divisors[0]);
+
+#define LCR_EVEN_PARITY 0x10
+#define LCR_STICK_PARITY 0x20
+#define LCR_ENABLE_PARITY 0x08
+
+struct char_to_lcr {
+	char parity ;
+	u8   lcr ;
+};
+
+static struct char_to_lcr const parity_values[] = {
+	{ 'N',	0 }
+,	{ 'E',	LCR_EVEN_PARITY|LCR_ENABLE_PARITY }
+,	{ 'O',			LCR_ENABLE_PARITY }
+,	{ 'M',			LCR_ENABLE_PARITY|LCR_STICK_PARITY }
+,	{ 'S',	LCR_EVEN_PARITY|LCR_ENABLE_PARITY|LCR_STICK_PARITY }
+};
+
+static unsigned num_parity_values = sizeof(parity_values)/sizeof(parity_values[0]);
+
+#define TOUPPER(c) ((c)&~0x20)
+
 static int sas8250_open (struct inode *inode, struct file *file) {
 	unsigned int minor = MINOR (file->f_dentry->d_inode->i_rdev);
         struct sas8250_dev *dev = dev_head ;
@@ -168,6 +216,9 @@ static int sas8250_open (struct inode *inode, struct file *file) {
 	if( dev ) {
 		int uses = atomic_inc_return(&dev->use_count);
 		if( 1 == uses ){
+			int i ;
+			u8 dlh, dll ;
+			u8 lcr ;
 			u32 pid0, pid1 ;
                         struct user_data *usr = (struct user_data *)kzalloc(USERDATA_SIZE,GFP_KERNEL);
 			usr->dev = dev ;
@@ -178,12 +229,42 @@ static int sas8250_open (struct inode *inode, struct file *file) {
 			usr->msgs  = (u32 *)(usr->chars+MAX_CHARS);
                         usr->regs = ioremap(dev->io_address,PAGE_SIZE);
 			printk( KERN_ERR "%s: %u 0x%x %u uses (%p) (%p)\n", __func__, dev->irq, dev->io_address, uses, usr, usr->regs );
+			printk( KERN_ERR "%s: %u, %u %c %u\n", __func__, dev->baud_rate, dev->data_bits, dev->parity, dev->stop_bits );
 			pid0 = read_8250_reg(dev->io_address,UART_PID0);
                         pid1 = read_8250_reg(dev->io_address,UART_PID1);
 			printk( KERN_ERR "PID 0x%08x 0x%08x\n", pid0, pid1 );
-			write_8250_reg(dev->io_address,UART_LCR,0x3B);		// space parity
-			write_8250_reg(dev->io_address,UART_DLL_DED,0x58);		// 19200 baud
-			write_8250_reg(dev->io_address,UART_DLH_DED,0x00);
+                        lcr = 0x38 ; // default SPACE parity
+
+			for( i = 0 ; i < num_parity_values ; i++ ){
+				if( dev->parity == parity_values[i].parity ){
+					lcr = parity_values[i].lcr ;
+					break;
+				}
+			}
+			if( i == num_parity_values ){
+				printk( KERN_ERR "%s: unsupported parity char %c\n", __func__, dev->parity );
+			}
+			if( 7 == dev->data_bits )
+				lcr |= 2 ;   // 7 data bits
+			else
+                                lcr |= 3 ;   // 8 data bits
+			write_8250_reg(dev->io_address,UART_LCR,lcr);
+			
+			dll = 0x58 ; dlh = 0 ; // default 19200 
+			for( i = 0 ; i < num_divisors ; i++ ){
+				struct baud_divisor const *const div = divisors+i ;
+				if( dev->baud_rate == div->baud ){
+					printk( KERN_ERR "%s: baud %u, divisor %02x%02x\n", __func__, dev->baud_rate, div->dlh, div->dll );
+					dll = div->dll ;
+					dlh = div->dlh ;
+					break;
+				}
+			}
+			if( i == num_divisors ){
+				printk( KERN_ERR "Unsupported baud rate: %u\n", dev->baud_rate );
+			}
+			write_8250_reg(dev->io_address,UART_DLL_DED,dll);
+			write_8250_reg(dev->io_address,UART_DLH_DED,dlh);
 			if( 0 > request_irq( dev->irq, interrupt_handler, IRQF_DISABLED, DRIVER_NAME, usr)) {
 				printk(KERN_ERR __FILE__ ": irq %d unavailable\n\r", dev->irq );
 				kfree(usr);
@@ -319,6 +400,30 @@ static void parse_devs( char *devstring )
 			return ;
 		}
 		addr->io_address = simple_strtoul(part,0,0);
+		
+		/* defaults */
+		addr->baud_rate = 19200 ;
+		addr->data_bits = 8 ;
+		addr->parity = 'S' ;
+		addr->stop_bits = 1 ;
+		
+		part=strsep(&token,",");
+		if( 0 != part ){
+			addr->baud_rate = simple_strtoul(part,0,0);
+			part = strsep(&token,",");
+			if( 0 != part ){
+				addr->data_bits = simple_strtoul(part,0,0);
+				part = strsep(&token,",");
+				if( 0 != part ){
+					addr->parity = TOUPPER(*part);
+					part = strsep(&token,",");
+					if( 0 != part ){
+						/* only 1 or 2 allowed */
+						addr->stop_bits = ('2'==*part)+1 ;
+					}
+				}
+			}
+		}
 		if(dev_tail)
 			dev_tail->next = addr ;
 		else
