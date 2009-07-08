@@ -198,7 +198,7 @@ static int __init xenon_init(void)
 	xenon_snd_device = platform_device_alloc("soc-audio", 0);
 	if (!xenon_snd_device)
 		return -ENOMEM;
-
+	gpio_request(MUTE_GPIO, "mute speaker");
 	platform_set_drvdata(xenon_snd_device, &xenon_snd_devdata);
 	xenon_snd_devdata.dev = &xenon_snd_device->dev;
 	platform_device_add_data(xenon_snd_device, &xenon_snd_data, sizeof(xenon_snd_data));
