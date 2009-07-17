@@ -52,6 +52,50 @@
 #include <linux/mtd/partitions.h>
 #endif
 
+/* Define default oob placement schemes for large and small page devices */
+static struct nand_ecclayout nand_oob_8 = {
+	.eccbytes = 3,
+	.eccpos = {0, 1, 2},
+	.oobfree = {
+		{.offset = 3,
+		 .length = 2},
+		{.offset = 6,
+		 .length = 2}}
+};
+
+static struct nand_ecclayout nand_oob_16 = {
+	.eccbytes = 6,
+	.eccpos = {0, 1, 2, 3, 6, 7},
+	.oobfree = {
+		{.offset = 8,
+		 . length = 8}}
+};
+
+static struct nand_ecclayout nand_oob_64 = {
+	.eccbytes = 24,
+	.eccpos = {
+		   40, 41, 42, 43, 44, 45, 46, 47,
+		   48, 49, 50, 51, 52, 53, 54, 55,
+		   56, 57, 58, 59, 60, 61, 62, 63},
+	.oobfree = {
+		{.offset = 2,
+		 .length = 38}}
+};
+
+static struct nand_ecclayout nand_oob_128 = {
+	.eccbytes = 48,
+	.eccpos = {
+		   80, 81, 82, 83, 84, 85, 86, 87,
+		   88, 89, 90, 91, 92, 93, 94, 95,
+		   96, 97, 98, 99, 100, 101, 102, 103,
+		   104, 105, 106, 107, 108, 109, 110, 111,
+		   112, 113, 114, 115, 116, 117, 118, 119,
+		   120, 121, 122, 123, 124, 125, 126, 127},
+	.oobfree = {
+		{.offset = 2,
+		 .length = 78}}
+};
+
 static int nand_get_device(struct nand_chip *chip, struct mtd_info *mtd,
 			   int new_state);
 
@@ -2569,7 +2613,7 @@ static struct nand_flash_dev *nand_get_flash_type(struct mtd_info *mtd,
  * @mtd:	     MTD device structure
  * @maxchips:	     Number of chips to scan for
  *
- * This is the first phase of the normal nand_scan() function. It
+ * This is the first phase of the normal nand_scan_finish() function. It
  * reads the flash ID and sets up MTD fields accordingly.
  *
  * The mtd->owner field must be set to the module of the caller.
@@ -2615,17 +2659,17 @@ int nand_scan_ident(struct mtd_info *mtd, int maxchips)
 
 	return 0;
 }
-
+EXPORT_SYMBOL_GPL(nand_scan_ident);
 
 /**
- * nand_scan_tail - [NAND Interface] Scan for the NAND device
+ * nand_scan_finish_tail - [NAND Interface] Scan for the NAND device
  * @mtd:	    MTD device structure
  *
- * This is the second phase of the normal nand_scan() function. It
+ * This is the second phase of the normal nand_scan_finish() function. It
  * fills out all the uninitialized function pointers with the defaults
  * and scans for a bad block table if appropriate.
  */
-int nand_scan_tail(struct mtd_info *mtd)
+int nand_scan_finish_tail(struct mtd_info *mtd)
 {
 	int i, len, bit, next_bit;
 	int bad_block_marker_offset;
@@ -2941,6 +2985,7 @@ try_again:
 	/* Build bad block table */
 	return chip->scan_bbt(mtd);
 }
+EXPORT_SYMBOL_GPL(nand_scan_finish_tail);
 
 /* is_module_text_address() isn't exported, and it's mostly a pointless
    test if this is a module _anyway_ -- they'd have to try _really_ hard
@@ -2953,7 +2998,7 @@ try_again:
 #endif
 
 /**
- * nand_scan - [NAND Interface] Scan for the NAND device
+ * nand_scan_finish - [NAND Interface] Scan for the NAND device
  * @mtd:	MTD device structure
  * @maxchips:	Number of chips to scan for
  *
@@ -2964,6 +3009,76 @@ try_again:
  * The mtd->owner field must be set to the module of the caller
  *
  */
+int nand_scan_finish(struct mtd_info *mtd, int maxchips)
+{
+	int ret;
+
+	/* Many callers got this wrong, so check for it for a while... */
+	if (!mtd->owner && caller_is_module()) {
+		printk(KERN_CRIT "nand_scan_finish() called with NULL mtd->owner!\n");
+		BUG();
+	}
+
+	ret = nand_scan_ident(mtd, maxchips);
+	if (!ret)
+		ret = nand_scan_finish_tail(mtd);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(nand_scan_finish);
+
+/*
+ * This is temporary to help in the conversion to a better
+ * default ecc layout. When all platforms have switched from
+ * using
+ *   nand_scan -> nand_scan_finish
+ *   nand_scan_tail -> nand_scan_finish_tail
+ *
+ * and have verified that no regression occurred, these
+ * routines along with
+ * static struct nand_ecclayout nand_oob_8;
+ * static struct nand_ecclayout nand_oob_16;
+ * static struct nand_ecclayout nand_oob_64;
+ * static struct nand_ecclayout nand_oob_128;
+ * will be removed.
+ *
+ * At that point, a global substitute of
+ *   nand_scan_finish -> nand_scan
+ *   nand_scan_finish_tail -> nand_scan_tail
+ * can be done if desired.
+ */
+int nand_scan_tail(struct mtd_info *mtd)
+{
+	struct nand_chip *chip = mtd->priv;
+	/*
+	 * If no default placement scheme is given, select an appropriate one
+	 */
+	if (!chip->ecc.layout.eccbytes) {
+		const struct nand_ecclayout *layout = NULL;
+		switch (mtd->oobsize) {
+		case 8:
+			layout = &nand_oob_8;
+			break;
+		case 16:
+			layout = &nand_oob_16;
+			break;
+		case 64:
+			layout = &nand_oob_64;
+			break;
+		case 128:
+			layout = &nand_oob_128;
+		break;
+		default:
+			printk(KERN_WARNING "No oob scheme defined for "
+			       "oobsize %d\n", mtd->oobsize);
+			BUG();
+		}
+		if (layout)
+			memcpy(&chip->ecc.layout, layout, sizeof(*layout));
+	}
+	return nand_scan_finish_tail(mtd);
+}
+EXPORT_SYMBOL_GPL(nand_scan_tail);
+
 int nand_scan(struct mtd_info *mtd, int maxchips)
 {
 	int ret;
@@ -2980,6 +3095,7 @@ int nand_scan(struct mtd_info *mtd, int maxchips)
 		ret = nand_scan_tail(mtd);
 	return ret;
 }
+EXPORT_SYMBOL_GPL(nand_scan);
 
 /**
  * nand_release - [NAND Interface] Free resources held by the NAND device
@@ -3002,9 +3118,6 @@ void nand_release(struct mtd_info *mtd)
 		kfree(chip->buffers);
 }
 
-EXPORT_SYMBOL_GPL(nand_scan);
-EXPORT_SYMBOL_GPL(nand_scan_ident);
-EXPORT_SYMBOL_GPL(nand_scan_tail);
 EXPORT_SYMBOL_GPL(nand_release);
 
 static int __init nand_base_init(void)
