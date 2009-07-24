@@ -168,19 +168,6 @@ static struct snd_soc_device xenon_snd_devdata = {
 	.codec_data = &xenon_tlv320aic23_setup,
 };
 
-static struct resource xenon_snd_resources[] = {
-	{
-		.start = DAVINCI_ASP0_BASE,
-		.end = DAVINCI_ASP0_BASE + SZ_8K - 1,
-		.flags = IORESOURCE_MEM,
-	},
-};
-
-static struct evm_snd_platform_data xenon_snd_data = {
-	.tx_dma_ch	= DAVINCI_DMA_ASP0_TX,
-	.rx_dma_ch	= DAVINCI_DMA_ASP0_RX,
-};
-
 static struct platform_device *xenon_snd_device;
 
 
@@ -201,15 +188,6 @@ static int __init xenon_init(void)
 	gpio_request(MUTE_GPIO, "mute speaker");
 	platform_set_drvdata(xenon_snd_device, &xenon_snd_devdata);
 	xenon_snd_devdata.dev = &xenon_snd_device->dev;
-	platform_device_add_data(xenon_snd_device, &xenon_snd_data, sizeof(xenon_snd_data));
-
-	ret = platform_device_add_resources(xenon_snd_device, xenon_snd_resources,
-					    ARRAY_SIZE(xenon_snd_resources));
-	if (ret) {
-		platform_device_put(xenon_snd_device);
-		return ret;
-	}
-
 	ret = platform_device_add(xenon_snd_device);
 	if (ret)
 		platform_device_put(xenon_snd_device);
