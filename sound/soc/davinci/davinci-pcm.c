@@ -58,7 +58,7 @@ static struct snd_pcm_hardware pcm_hardware_playback = {
 		  SNDRV_PCM_RATE_KNOT),
 	.rate_min = 8000,
 	.rate_max = 96000,
-	.channels_min = 2,
+	.channels_min = 1,
 	.channels_max = 2,
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min = 32,
@@ -80,7 +80,7 @@ static struct snd_pcm_hardware pcm_hardware_capture = {
 		  SNDRV_PCM_RATE_KNOT),
 	.rate_min = 8000,
 	.rate_max = 96000,
-	.channels_min = 2,
+	.channels_min = 1,
 	.channels_max = 2,
 	.buffer_bytes_max = 128 * 1024,
 	.period_bytes_min = 32,
@@ -151,12 +151,10 @@ static void davinci_pcm_enqueue_dma(struct snd_pcm_substream *substream)
 	unsigned int dma_offset;
 	dma_addr_t dma_pos;
 	dma_addr_t src, dst;
-	unsigned short src_bidx, dst_bidx;
-	unsigned short src_cidx, dst_cidx;
-	unsigned int data_type;
-	unsigned short acnt;
-	unsigned int count;
 	unsigned int fifo_level;
+	unsigned int count;
+	unsigned int data_type = prtd->params->data_type;
+	unsigned int convert_mono_stereo = prtd->params->convert_mono_stereo;
 
 	period_size = snd_pcm_lib_period_bytes(substream);
 	dma_offset = prtd->period * period_size;
@@ -166,39 +164,46 @@ static void davinci_pcm_enqueue_dma(struct snd_pcm_substream *substream)
 	pr_debug("davinci_pcm: audio_set_dma_params_play channel = %d "
 		"dma_ptr = %x period_size=%x\n", link, dma_pos, period_size);
 
-	data_type = prtd->params->data_type;
-	count = period_size / data_type;
-	if (fifo_level)
-		count /= fifo_level;
-
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
 		src = dma_pos;
 		dst = prtd->params->dma_addr;
-		src_bidx = data_type;
-		dst_bidx = 0;
-		src_cidx = data_type * fifo_level;
-		dst_cidx = 0;
+		if (convert_mono_stereo)
+			edma_set_src_index(link, 0, data_type);
+		else
+			edma_set_src_index(link, data_type, data_type * fifo_level);
+		edma_set_dest_index(link, 0, 0);
 	} else {
 		src = prtd->params->dma_addr;
 		dst = dma_pos;
-		src_bidx = 0;
-		dst_bidx = data_type;
-		src_cidx = 0;
-		dst_cidx = data_type * fifo_level;
+		edma_set_src_index(link, 0, 0);
+		if (convert_mono_stereo)
+		        edma_set_dest_index(link, 0, data_type);
+		else
+		        edma_set_dest_index(link, data_type, data_type * fifo_level);
 	}
 
-	acnt = prtd->params->acnt;
 	edma_set_src(link, src, INCR, W8BIT);
 	edma_set_dest(link, dst, INCR, W8BIT);
-
-	edma_set_src_index(link, src_bidx, src_cidx);
-	edma_set_dest_index(link, dst_bidx, dst_cidx);
-
-	if (!fifo_level)
-		edma_set_transfer_params(link, acnt, count, 1, 0, ASYNC);
-	else
-		edma_set_transfer_params(link, acnt, fifo_level, count,
-							fifo_level, ABSYNC);
+	if (convert_mono_stereo) {
+		/*
+		 * Each byte is sent twice, so
+		 * A_CNT * B_CNT * C_CNT = 2 * period_size
+		 */
+		enum sync_dimension sync = (!fifo_level) ? ASYNC : ABSYNC;
+		count = period_size / data_type;
+		edma_set_transfer_params(link, prtd->params->acnt,
+					2, count, 2, sync);
+	} else {
+		if (!fifo_level) {
+			count = period_size / data_type;
+			edma_set_transfer_params(link, prtd->params->acnt,
+					count, 1, 0, ASYNC);
+		} else {
+			count = period_size / (data_type * fifo_level);
+			edma_set_transfer_params(link, prtd->params->acnt,
+					fifo_level, count, fifo_level, ABSYNC);
+		}
+	}
 
 	prtd->period++;
 	if (unlikely(prtd->period >= runtime->periods))
@@ -272,6 +277,7 @@ static int ping_pong_dma_setup(struct snd_pcm_substream *substream)
 	struct davinci_pcm_dma_params *params = prtd->params;
 	unsigned int data_type = params->data_type;
 	unsigned int acnt = params->acnt;
+	unsigned int convert_mono_stereo = params->convert_mono_stereo;
 	/* divide by 2 for ping/pong */
 	unsigned int ping_size = snd_pcm_lib_period_bytes(substream) >> 1;
 	int link = prtd->asp_link[1];
@@ -288,9 +294,15 @@ static int ping_pong_dma_setup(struct snd_pcm_substream *substream)
 		edma_set_src(link, asp_src_pong, INCR, W8BIT);
 
 		link = prtd->asp_link[0];
-		edma_set_src_index(link, data_type, data_type * fifo_level);
-		link = prtd->asp_link[1];
-		edma_set_src_index(link, data_type, data_type * fifo_level);
+		if (convert_mono_stereo) {
+			edma_set_src_index(link, 0, data_type);
+			link = prtd->asp_link[1];
+			edma_set_src_index(link, 0, data_type);
+		} else {
+			edma_set_src_index(link, data_type, data_type * fifo_level);
+			link = prtd->asp_link[1];
+			edma_set_src_index(link, data_type, data_type * fifo_level);
+		}
 
 		link = prtd->ram_link;
 		edma_set_src(link, runtime->dma_addr, INCR, W32BIT);
@@ -301,26 +313,44 @@ static int ping_pong_dma_setup(struct snd_pcm_substream *substream)
 		edma_set_dest(link, asp_dst_pong, INCR, W8BIT);
 
 		link = prtd->asp_link[0];
-		edma_set_dest_index(link, data_type, data_type * fifo_level);
-		link = prtd->asp_link[1];
-		edma_set_dest_index(link, data_type, data_type * fifo_level);
-
+		if (convert_mono_stereo) {
+			edma_set_dest_index(link, 0, data_type);
+			link = prtd->asp_link[1];
+			edma_set_dest_index(link, 0, data_type);
+		} else {
+			edma_set_dest_index(link, data_type, data_type * fifo_level);
+			link = prtd->asp_link[1];
+			edma_set_dest_index(link, data_type, data_type * fifo_level);
+		}
 		link = prtd->ram_link;
 		edma_set_dest(link, runtime->dma_addr, INCR, W32BIT);
 	}
 
-	if (!fifo_level) {
+	if (convert_mono_stereo) {
+		/*
+		 * Each byte is sent twice, so
+		 * A_CNT * B_CNT * C_CNT = 2 * ping_size
+		 */
+		enum sync_dimension sync = (!fifo_level) ? ASYNC : ABSYNC;
 		count = ping_size / data_type;
-		edma_set_transfer_params(prtd->asp_link[0], acnt, count,
-				1, 0, ASYNC);
-		edma_set_transfer_params(prtd->asp_link[1], acnt, count,
-				1, 0, ASYNC);
+		edma_set_transfer_params(prtd->asp_link[0], acnt,
+				2, count, 2, sync);
+		edma_set_transfer_params(prtd->asp_link[1], acnt,
+				2, count, 2, sync);
 	} else {
-		count = ping_size / (data_type * fifo_level);
-		edma_set_transfer_params(prtd->asp_link[0], acnt, fifo_level,
-				count, fifo_level, ABSYNC);
-		edma_set_transfer_params(prtd->asp_link[1], acnt, fifo_level,
-				count, fifo_level, ABSYNC);
+		if (!fifo_level) {
+			count = ping_size / data_type;
+			edma_set_transfer_params(prtd->asp_link[0], acnt,
+					count, 1, 0, ASYNC);
+			edma_set_transfer_params(prtd->asp_link[1], acnt,
+					count, 1, 0, ASYNC);
+		} else {
+			count = ping_size / (data_type * fifo_level);
+			edma_set_transfer_params(prtd->asp_link[0], acnt,
+					fifo_level, count, fifo_level, ABSYNC);
+			edma_set_transfer_params(prtd->asp_link[1], acnt,
+					fifo_level, count, fifo_level, ABSYNC);
+		}
 	}
 
 	link = prtd->ram_link;
@@ -548,7 +578,14 @@ static int davinci_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 static int davinci_pcm_prepare(struct snd_pcm_substream *substream)
 {
 	struct davinci_runtime_data *prtd = substream->runtime->private_data;
+	struct davinci_pcm_dma_params *params = prtd->params;
+	unsigned int convert_mono_stereo = params->convert_mono_stereo;
+	unsigned int fifo_level = params->fifo_level;
 
+	if (params->convert_mono_stereo) if (!fifo_level) if (fifo_level != 2) {
+		printk(KERN_ERR "fifo_level must be 2 or 0\n");
+		return -EINVAL;
+	}
 	if (prtd->ram_channel >= 0) {
 		int ret = ping_pong_dma_setup(substream);
 		if (ret < 0)
