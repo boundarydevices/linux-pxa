@@ -994,7 +994,7 @@ static int nand_read_page_hwecc_oob_first(struct mtd_info *mtd,
 	int eccsteps = chip->ecc.steps;
 	uint8_t *p = buf;
 	uint8_t *ecc_code = chip->buffers->ecccode;
-	uint32_t *eccpos = chip->ecc.layout->eccpos;
+	uint32_t *eccpos = chip->ecc.layout.eccpos;
 	uint8_t *ecc_calc = chip->buffers->ecccalc;
 
 	/* Read the OOB area first */
