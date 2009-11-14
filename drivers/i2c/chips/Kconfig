@@ -26,4 +26,12 @@ config SENSORS_TSL2550
 	  This driver can also be built as a module.  If so, the module
 	  will be called tsl2550.
 
+config THS8200
+	tristate "THS8200 video dac"
+	help
+	  If you say yes here you get support for the THS8200
+
+	  This driver can also be built as a module.  If so, the module
+	  will be called ths8200.
+
 endmenu

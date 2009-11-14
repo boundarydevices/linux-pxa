@@ -29,6 +29,7 @@ obj-$(CONFIG_MACH_DAVINCI_DM6467_EVM)	+= board-dm646x-evm.o
 obj-$(CONFIG_MACH_DAVINCI_DM365_EVM)	+= board-dm365-evm.o
 obj-$(CONFIG_MACH_DAVINCI_DA830_EVM)	+= board-da830-evm.o
 obj-$(CONFIG_MACH_DAVINCI_DA850_EVM)	+= board-da850-evm.o
+obj-$(CONFIG_MACH_DAVINCI_XENON)	+= board-xenon.o env-emac.o
 
 # Power Management
 obj-$(CONFIG_CPU_FREQ)			+= cpufreq.o

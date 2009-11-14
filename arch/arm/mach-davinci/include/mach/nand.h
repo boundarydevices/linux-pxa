@@ -85,4 +85,15 @@ struct davinci_nand_pdata {		/* platform_data */
 	struct nand_bbt_descr	*bbt_md;
 };
 
+struct davinci_flash_platform_data {
+	unsigned int	options;
+	unsigned int	timings;
+	unsigned int	chip_num;	/* 0-3 : cs2-cs5 */
+	char		*name;
+	struct mtd_partition *parts;
+	unsigned int	nr_parts;
+	char		*type;
+	nand_ecc_modes_t	ecc_mode;
+};
+
 #endif	/* __ARCH_ARM_DAVINCI_NAND_H */

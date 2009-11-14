@@ -448,6 +448,23 @@ void nand_wait_ready(struct mtd_info *mtd)
 }
 EXPORT_SYMBOL_GPL(nand_wait_ready);
 
+static void wait_for_ready(struct mtd_info *mtd, struct nand_chip *chip)
+{
+	if (!chip->dev_ready) {
+		/*
+		 * If we don't have access to the busy pin, we apply the given
+		 * command delay
+		 */
+		udelay(chip->chip_delay);
+	} else {
+		/* Apply this short delay always to ensure that we do wait tWB
+		 * in any case on any machine. */
+		ndelay(100);
+		nand_wait_ready(mtd);
+	}
+}
+
+
 /**
  * nand_command - [DEFAULT] Send command to NAND device
  * @mtd:	MTD device structure
@@ -531,23 +548,10 @@ static void nand_command(struct mtd_info *mtd, unsigned int command,
 			       NAND_CMD_NONE, NAND_NCE | NAND_CTRL_CHANGE);
 		while (!(chip->read_byte(mtd) & NAND_STATUS_READY)) ;
 		return;
-
-		/* This applies to read commands */
-	default:
-		/*
-		 * If we don't have access to the busy pin, we apply the given
-		 * command delay
-		 */
-		if (!chip->dev_ready) {
-			udelay(chip->chip_delay);
-			return;
-		}
+	case NAND_CMD_READ0:
+		return;
 	}
-	/* Apply this short delay always to ensure that we do wait tWB in
-	 * any case on any machine. */
-	ndelay(100);
-
-	nand_wait_ready(mtd);
+	wait_for_ready(mtd, chip);
 }
 
 /**
@@ -565,11 +569,13 @@ static void nand_command_lp(struct mtd_info *mtd, unsigned int command,
 			    int column, int page_addr)
 {
 	register struct nand_chip *chip = mtd->priv;
+	int oob = 0;
 
 	/* Emulate NAND_CMD_READOOB */
 	if (command == NAND_CMD_READOOB) {
 		column += mtd->writesize;
 		command = NAND_CMD_READ0;
+		oob = 1;
 	}
 
 	/* Command latch cycle */
@@ -651,24 +657,10 @@ static void nand_command_lp(struct mtd_info *mtd, unsigned int command,
 			       NAND_NCE | NAND_CLE | NAND_CTRL_CHANGE);
 		chip->cmd_ctrl(mtd, NAND_CMD_NONE,
 			       NAND_NCE | NAND_CTRL_CHANGE);
-
-		/* This applies to read commands */
-	default:
-		/*
-		 * If we don't have access to the busy pin, we apply the given
-		 * command delay
-		 */
-		if (!chip->dev_ready) {
-			udelay(chip->chip_delay);
+		if (oob == 0)
 			return;
-		}
 	}
-
-	/* Apply this short delay always to ensure that we do wait tWB in
-	 * any case on any machine. */
-	ndelay(100);
-
-	nand_wait_ready(mtd);
+	wait_for_ready(mtd, chip);
 }
 
 /**
@@ -767,6 +759,7 @@ static int nand_wait(struct mtd_info *mtd, struct nand_chip *chip)
 static int nand_read_page_raw(struct mtd_info *mtd, struct nand_chip *chip,
 			      uint8_t *buf, int page)
 {
+	wait_for_ready(mtd, chip);
 	chip->read_buf(mtd, buf, mtd->writesize);
 	chip->read_buf(mtd, chip->oob_poi, mtd->oobsize);
 	return 0;
@@ -830,6 +823,7 @@ static int nand_read_page_swecc(struct mtd_info *mtd, struct nand_chip *chip,
 	uint8_t *ecc_code = chip->buffers->ecccode;
 	uint32_t *eccpos = chip->ecc.layout->eccpos;
 
+	wait_for_ready(mtd, chip);
 	chip->ecc.read_page_raw(mtd, chip, buf, page);
 
 	for (i = 0; eccsteps; eccsteps--, i += eccbytes, p += eccsize)
@@ -953,6 +947,7 @@ static int nand_read_page_hwecc(struct mtd_info *mtd, struct nand_chip *chip,
 	uint8_t *ecc_code = chip->buffers->ecccode;
 	uint32_t *eccpos = chip->ecc.layout->eccpos;
 
+	wait_for_ready(mtd, chip);
 	for (i = 0; eccsteps; eccsteps--, i += eccbytes, p += eccsize) {
 		chip->ecc.hwctl(mtd, NAND_ECC_READ);
 		chip->read_buf(mtd, p, eccsize);
@@ -1044,6 +1039,7 @@ static int nand_read_page_syndrome(struct mtd_info *mtd, struct nand_chip *chip,
 	uint8_t *p = buf;
 	uint8_t *oob = chip->oob_poi;
 
+	wait_for_ready(mtd, chip);
 	for (i = 0; eccsteps; eccsteps--, i += eccbytes, p += eccsize) {
 		int stat;
 
@@ -1220,10 +1216,7 @@ static int nand_do_read_ops(struct mtd_info *mtd, loff_t from,
 				 * increment is marked as NOAUTOINCR by the
 				 * board driver.
 				 */
-				if (!chip->dev_ready)
-					udelay(chip->chip_delay);
-				else
-					nand_wait_ready(mtd);
+				wait_for_ready(mtd, chip);
 			}
 		} else {
 			memcpy(buf, chip->buffers->databuf + col, bytes);
@@ -1342,13 +1335,16 @@ static int nand_read_oob_syndrome(struct mtd_info *mtd, struct nand_chip *chip,
 	int i, toread, sndrnd = 0, pos;
 
 	chip->cmdfunc(mtd, NAND_CMD_READ0, chip->ecc.size, page);
+	wait_for_ready(mtd, chip);
 	for (i = 0; i < chip->ecc.steps; i++) {
 		if (sndrnd) {
 			pos = eccsize + i * (eccsize + chunk);
 			if (mtd->writesize > 512)
 				chip->cmdfunc(mtd, NAND_CMD_RNDOUT, pos, -1);
-			else
+			else {
 				chip->cmdfunc(mtd, NAND_CMD_READ0, pos, page);
+				wait_for_ready(mtd, chip);
+			}
 		} else
 			sndrnd = 1;
 		toread = min_t(int, length, chunk);
@@ -1505,10 +1501,7 @@ static int nand_do_read_oob(struct mtd_info *mtd, loff_t from,
 			 * chip which does auto increment is marked as
 			 * NOAUTOINCR by the board driver.
 			 */
-			if (!chip->dev_ready)
-				udelay(chip->chip_delay);
-			else
-				nand_wait_ready(mtd);
+			wait_for_ready(mtd, chip);
 		}
 
 		readlen -= len;
@@ -1783,6 +1776,7 @@ static int nand_write_page(struct mtd_info *mtd, struct nand_chip *chip,
 #ifdef CONFIG_MTD_NAND_VERIFY_WRITE
 	/* Send command to read back the data */
 	chip->cmdfunc(mtd, NAND_CMD_READ0, 0, page);
+	wait_for_ready(mtd, chip);
 
 	if (chip->verify_buf(mtd, buf, mtd->writesize))
 		return -EIO;
