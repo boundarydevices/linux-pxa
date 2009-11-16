@@ -167,6 +167,7 @@ static struct platform_device audio_dev = {
 };
 
 static struct snd_platform_data snd_data ={
+	.enable_channel_combine = 1,
 	.sram_size_playback	= 7 * 512,    /* Size of ping + pong buffer*/
 	.sram_size_capture	= 7 * 512,    /* Size of ping + pong buffer*/
 };
