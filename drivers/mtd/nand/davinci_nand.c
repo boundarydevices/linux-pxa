@@ -449,7 +449,7 @@ void dump(uint8_t *buf, int len)
 }
 #endif
 static int read_page_dma(struct mtd_info *mtd, struct nand_chip *_chip,
-	uint8_t *buf)
+	uint8_t *buf, int page)
 {
 	struct d_nand_chip *chip = (struct d_nand_chip *)_chip;
 	int i;
