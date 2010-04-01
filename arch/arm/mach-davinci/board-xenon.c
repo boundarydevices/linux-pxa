@@ -172,6 +172,16 @@ static struct snd_platform_data snd_data ={
 	.sram_size_capture	= 7 * 512,    /* Size of ping + pong buffer*/
 };
 
+struct plat_i2c_touch_data {
+	unsigned irq;
+	unsigned gp;
+};
+
+struct plat_i2c_touch_data i2c_touch_data = {
+	IRQ_GPIO(11),	//IRQ_GPIO(3) for pxa
+	11
+};
+
 static struct i2c_board_info __initdata i2c_info[] =  {
 	{
 		I2C_BOARD_INFO("ths8200", 0x21),
@@ -180,7 +190,7 @@ static struct i2c_board_info __initdata i2c_info[] =  {
 	{
 		I2C_BOARD_INFO("Pic16F616-ts", 0x22),
 		.type		= "Pic16F616-ts",
-//		.platform_data	= &i2c_touch_data,
+		.platform_data	= &i2c_touch_data,
 	},
 };
 

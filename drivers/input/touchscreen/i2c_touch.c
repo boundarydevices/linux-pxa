@@ -28,7 +28,7 @@
 #include <mach/hardware.h>
 #include <mach/gpio.h>
 #include <linux/proc_fs.h>
-
+#include <linux/delay.h>
 /*
  * Define this if you want to talk to the input layer
  */
@@ -82,10 +82,12 @@ struct pic16f616_ts {
 	int			use_count;
 	int		bReady;
 	int		interruptCnt;
+//#define TESTING
 #ifdef TESTING
 	struct timeval	lastInterruptTime;
 #endif
 	int irq;
+	unsigned gp;
 	struct proc_dir_entry *procentry;
 	struct proc_dir_entry *tstype_procentry;
 };
@@ -545,7 +547,7 @@ static irqreturn_t ts_interrupt(int irq, void *id)
 	struct pic16f616_ts *ts = id;
 	int bit;
 	{
-		int gp = IRQ_TO_GPIO(irq);
+		unsigned gp = ts->gp;
 #if 1
 		bit = gpio_get_value(gp);
 #else
@@ -566,7 +568,7 @@ static irqreturn_t ts_interrupt(int irq, void *id)
 		do_gettimeofday(&ts->lastInterruptTime);
 		delta = ts->lastInterruptTime.tv_usec - tv_usec;
 		if (delta<0) delta += 1000000;
-		printk(KERN_WARNING "\n(t%i %i)\n",delta,bit);
+		printk(KERN_WARNING "(delta=%ius gp%i=%i)\n",delta, ts->gp, bit);
 	}
 #endif
 	return IRQ_HANDLED;
@@ -586,7 +588,7 @@ static int ts_startup(struct pic16f616_ts* ts)
 	if (ts->rtask)
 		panic("pic16f616tsd: rtask running?");
 
-	ret = request_irq(ts->irq, &ts_interrupt, 0, client_name, ts);
+	ret = request_irq(ts->irq, &ts_interrupt, IRQF_TRIGGER_FALLING, client_name, ts);
 	if (ret) {
 		printk(KERN_ERR "%s: request_irq failed, irq:%i\n", client_name,ts->irq);
 		goto out;
@@ -637,12 +639,17 @@ static int ts_detect(struct i2c_client *client, int kind,
 	strlcpy(info->type, "pic16f616-ts", I2C_NAME_SIZE);
 	return 0;
 }
+struct plat_i2c_touch_data {
+	unsigned irq;
+	unsigned gp;
+};
 
 static int ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 {
 	int err = 0;
 	struct pic16f616_ts* ts;
 	struct device *dev = &client->dev;
+	struct plat_i2c_touch_data *plat = client->dev.platform_data;
 	if (gts) {
 		printk(KERN_ERR "%s: Error gts is already allocated\n",client_name);
 		return -ENOMEM;
@@ -655,11 +662,9 @@ static int ts_probe(struct i2c_client *client, const struct i2c_device_id *id)
 	init_waitqueue_head(&ts->sample_waitq);
 	init_MUTEX(&ts->sem);
 	ts->client = client;
-#ifdef CONFIG_MACH_DAVINCI_XENON
-	ts->irq = IRQ_GPIO(11);
-#else
-	ts->irq = IRQ_GPIO(3);
-#endif
+	ts->irq = plat->irq;
+	ts->gp = plat->gp;
+	printk(KERN_INFO "%s: %s touchscreen irq=%i, gp=%i\n", __func__, client_name, ts->irq, ts->gp);
 	i2c_set_clientdata(client, ts);
 	err = ts_register(ts);
 	if (err==0) {
