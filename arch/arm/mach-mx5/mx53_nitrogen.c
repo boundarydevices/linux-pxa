@@ -81,6 +81,7 @@
 #include <asm/mach/time.h>
 #include <asm/mach-types.h>
 #include <asm/setup.h>
+#include <mach/mxc_rfkill.h>
 
 #include "crm_regs.h"
 #include "devices.h"
@@ -1678,6 +1679,28 @@ extern struct regulator_consumer_supply ldo9_consumers[];
 /*****************************************************************************/
 #if defined(CONFIG_MACH_NITROGEN_A_IMX53) || defined(CONFIG_MACH_NITROGEN_AP_IMX53)
 
+static struct platform_device mxc_bt_rfkill = {
+	.name = "mxc_bt_rfkill",
+};
+
+static void nitrogena_bt_reset(void)
+{
+	printk (KERN_ERR "----------------------%s\n", __func__ );
+}
+
+static int nitrogena_bt_power_change(int status)
+{
+	printk (KERN_ERR "%s: %d\n", __func__, status);
+	if (status)
+		nitrogena_bt_reset();
+
+	return 0;
+}
+
+static struct mxc_bt_rfkill_platform_data mxc_bt_rfkill_data = {
+	.power_change = nitrogena_bt_power_change,
+};
+
 struct gpio nitrogen53_gpios_specific_a[] __initdata = {
 	{.label = "pmic-int",		.gpio = MAKE_GP(2, 21),		.flags = GPIOF_DIR_IN},
 	{.label = "Camera power down",	.gpio = MAKE_GP(2, 22),		.flags = GPIOF_INIT_HIGH},	/* EIM_A16 */
@@ -1945,6 +1968,8 @@ static void __init mxc_board_init_nitrogen_a(void)
 
 	mxc_register_device(&n53a_i2c3_i2cmux, &n53a_i2c3_i2cmux_data);
 	i2c_register_board_info(7, n53a_i2c7_board_info, ARRAY_SIZE(n53a_i2c7_board_info));
+
+	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 }
 
 MACHINE_START(NITROGEN_A_IMX53, "Boundary Devices Nitrogen_A MX53 Board")
