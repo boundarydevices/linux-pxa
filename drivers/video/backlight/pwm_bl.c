@@ -28,6 +28,7 @@ struct pwm_bl_data {
 	unsigned int		period;
 	int			(*notify)(struct device *,
 					  int brightness);
+	int			(*check_fb)(struct device *, struct fb_info *);
 };
 
 static int pwm_backlight_update_status(struct backlight_device *bl)
@@ -66,13 +67,16 @@ static int pwm_backlight_get_brightness(struct backlight_device *bl)
 	return bl->props.brightness;
 }
 
-static int pwm_backlight_check_fb(struct fb_info *info)
+static int pwm_backlight_check_fb(struct backlight_device *bl,
+		struct fb_info *info)
 {
+	struct pwm_bl_data *pb = dev_get_drvdata(&bl->dev);
 	char *id = info->fix.id;
-	if (!strcmp(id, "DISP3 BG"))
-	    return 1;
-	else
-	return 0;
+	if (pb->check_fb)
+		return pb->check_fb(pb->dev, info);
+	if (strcmp(id, "DISP3 BG"))
+		return 0;
+	return 1;
 }
 
 static const struct backlight_ops pwm_backlight_ops = {
@@ -110,6 +114,7 @@ static int pwm_backlight_probe(struct platform_device *pdev)
 	memcpy(pb->usable_range,data->usable_range,sizeof(pb->usable_range));
 	pb->period = data->pwm_period_ns;
 	pb->notify = data->notify;
+	pb->check_fb = data->check_fb;
 	pb->dev = &pdev->dev;
 
 	pb->pwm = pwm_request(data->pwm_id, "backlight");
