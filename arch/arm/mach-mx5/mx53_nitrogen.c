@@ -555,6 +555,19 @@ static struct mxc_pwm_platform_data mxc_pwm1_platform_data = {
 	.clk_select = PWM_CLK_HIGHPERF,
 };
 
+#ifdef CONFIG_MACH_NITROGEN_A_IMX53
+
+#define N53A_LCD_3_3V_POWER_ENABLE		MAKE_GP(2, 6)		/* PATA_DATA6, */
+#define N53A_LCD_BACKLIGHT			MAKE_GP(2, 16)		/* NitrogenA, EIM_A22 */
+
+static int n53a_backlight_notify(struct device *dev, int brightness)
+{
+	pr_debug("%s: brightness=%d\n", __func__, brightness);
+	gpio_set_value(N53A_LCD_3_3V_POWER_ENABLE, brightness ? 1 : 0);
+	gpio_set_value(N53A_LCD_BACKLIGHT, brightness ? 1 : 0);
+	return 0;
+}
+#endif
 
 /* GPIO_1 lcd backlight(pwm2) */
 static struct platform_pwm_backlight_data mxc_backlight_data1 = {
@@ -564,6 +577,9 @@ static struct platform_pwm_backlight_data mxc_backlight_data1 = {
 	.pwm_period_ns = 1000000000/32768,	/* 30517 */
 #if defined (CONFIG_MACH_MX53_NITROGEN_K) || defined (CONFIG_MACH_NITROGEN_A_IMX53)
        .usable_range = {226,256},
+#endif
+#ifdef CONFIG_MACH_NITROGEN_A_IMX53
+       .notify	= n53a_backlight_notify,
 #endif
 };
 #endif
@@ -1678,22 +1694,16 @@ extern struct regulator_consumer_supply ldo9_consumers[];
 
 /*****************************************************************************/
 #if defined(CONFIG_MACH_NITROGEN_A_IMX53) || defined(CONFIG_MACH_NITROGEN_AP_IMX53)
+#define N53A_BT_RESET			MAKE_GP(3, 3)		/* EIM_DA3 */
 
 static struct platform_device mxc_bt_rfkill = {
 	.name = "mxc_bt_rfkill",
 };
 
-static void nitrogena_bt_reset(void)
-{
-	printk (KERN_ERR "----------------------%s\n", __func__ );
-}
-
 static int nitrogena_bt_power_change(int status)
 {
 	printk (KERN_ERR "%s: %d\n", __func__, status);
-	if (status)
-		nitrogena_bt_reset();
-
+	gpio_set_value(N53A_BT_RESET, status ? 1 : 0);
 	return 0;
 }
 
@@ -1702,8 +1712,12 @@ static struct mxc_bt_rfkill_platform_data mxc_bt_rfkill_data = {
 };
 
 struct gpio nitrogen53_gpios_specific_a[] __initdata = {
+	{.label = "lcd3.3",		.gpio = N53A_LCD_3_3V_POWER_ENABLE,
+									.flags = GPIOF_INIT_LOW},	/* gp2[6] */
+	{.label = "lcd_backlight",	.gpio = N53A_LCD_BACKLIGHT,	.flags = GPIOF_INIT_LOW},	/* gp2[16] */
 	{.label = "pmic-int",		.gpio = MAKE_GP(2, 21),		.flags = GPIOF_DIR_IN},
 	{.label = "Camera power down",	.gpio = MAKE_GP(2, 22),		.flags = GPIOF_INIT_HIGH},	/* EIM_A16 */
+	{.label = "bt_reset",		.gpio = N53A_BT_RESET,		.flags = GPIOF_INIT_LOW},
 //gpio3[9] - must always be high on early board rev, (empty i2c hub without pullups)
 	{.label = "i2c empty hub",	.gpio = MAKE_GP(3, 9),		.flags = GPIOF_INIT_LOW},
 #define N53_I2C_PIC16F616_INT			MAKE_GP(3, 8)
@@ -1783,6 +1797,13 @@ static struct i2c_board_info n53a_i2c6_board_info[] __initdata = {
 
 static struct i2c_board_info n53a_i2c7_board_info[] __initdata = {
 	{
+	 .type = "isl1208",
+	 .addr = 0x6f,
+	},
+};
+
+static struct i2c_board_info n53a_i2c8_board_info[] __initdata = {
+	{
 	 .type = "sc16is7xx-uart",
 	 .addr = 0x49,
 	 .platform_data  = &i2c_sc16is7xx_data,
@@ -1792,17 +1813,18 @@ static struct i2c_board_info n53a_i2c7_board_info[] __initdata = {
 #endif
 
 #ifdef CONFIG_MACH_NITROGEN_A_IMX53
-/* i2c3-i2c6, Middle i2C bus has a switch */
+/* i2c3-i2c7, Middle i2C bus has a switch */
 static const unsigned n53a_i2c2_gpiomux_gpios[] = {
-	/* i2c3- i2c6*/
+	/* i2c3- i2c7*/
 	MAKE_GP(3, 7),		/* EIM_DA7 - PIC16F616_TOUCH */
 	MAKE_GP(3, 10),		/* EIM_DA10 - Camera */
 	MAKE_GP(3, 11),		/* EIM_DA11 - TFP410_ACCEL*/
-	MAKE_GP(6, 11)		/* NANDF_CS0 - BATT_EDID */
+	MAKE_GP(6, 11),		/* NANDF_CS0 - BATT_EDID */
+	MAKE_GP(6, 12)		/* NANDF_WE - rtc isl1208 */
 };
 
 static const unsigned n53a_i2c2_gpiomux_values[] = {
-	1, 2, 4, 8
+	1, 2, 4, 8, 16
 };
 
 static struct gpio_i2cmux_platform_data n53a_i2c2_i2cmux_data = {
@@ -1823,9 +1845,9 @@ static struct platform_device n53a_i2c2_i2cmux = {
         },
 };
 
-/* i2c7, Last i2C bus has a buffer for UART */
+/* i2c8, Last i2C bus has a buffer for UART */
 static const unsigned n53a_i2c3_gpiomux_gpios[] = {
-	/* i2c7*/
+	/* i2c8*/
 	MAKE_GP(6, 10)		/* NANDF_RB0 - SC16IS7XX */
 };
 
@@ -1835,7 +1857,7 @@ static const unsigned n53a_i2c3_gpiomux_values[] = {
 
 static struct gpio_i2cmux_platform_data n53a_i2c3_i2cmux_data = {
 	.parent		= 2,
-	.base_nr	= 7, /* optional */
+	.base_nr	= 8, /* optional */
 	.values		= n53a_i2c3_gpiomux_values,
 	.n_values	= ARRAY_SIZE(n53a_i2c3_gpiomux_values),
 	.gpios		= n53a_i2c3_gpiomux_gpios,
@@ -1965,9 +1987,10 @@ static void __init mxc_board_init_nitrogen_a(void)
 	i2c_register_board_info(4, n53a_i2c4_board_info, ARRAY_SIZE(n53a_i2c4_board_info));
 	i2c_register_board_info(5, n53a_i2c5_board_info, ARRAY_SIZE(n53a_i2c5_board_info));
 	i2c_register_board_info(6, n53a_i2c6_board_info, ARRAY_SIZE(n53a_i2c6_board_info));
+	i2c_register_board_info(7, n53a_i2c7_board_info, ARRAY_SIZE(n53a_i2c7_board_info));
 
 	mxc_register_device(&n53a_i2c3_i2cmux, &n53a_i2c3_i2cmux_data);
-	i2c_register_board_info(7, n53a_i2c7_board_info, ARRAY_SIZE(n53a_i2c7_board_info));
+	i2c_register_board_info(8, n53a_i2c8_board_info, ARRAY_SIZE(n53a_i2c8_board_info));
 
 	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 }
