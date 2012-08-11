@@ -565,7 +565,7 @@ static int n53a_backlight_notify(struct device *dev, int brightness)
 	pr_debug("%s: brightness=%d\n", __func__, brightness);
 	gpio_set_value(N53A_LCD_3_3V_POWER_ENABLE, brightness ? 1 : 0);
 	gpio_set_value(N53A_LCD_BACKLIGHT, brightness ? 1 : 0);
-	return 0;
+	return brightness;
 }
 #endif
 
