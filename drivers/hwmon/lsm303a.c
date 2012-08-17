@@ -20,6 +20,9 @@
 #include <linux/delay.h>
 #include <linux/input-polldev.h>
 
+#define MIN_VALUE (-32768*4)
+#define MAX_VALUE (32767*2)
+
 struct lsm303_accelerometer {
 	struct i2c_client	*client;
 	struct input_polled_dev	*idev;
@@ -79,8 +82,17 @@ static void accel_poll(struct input_polled_dev *idev)
 						s16 val = retval ;
 						retval = read_reg(accel->client,++reg);
 						if (0 <= retval) {
+							s32 fullscale ;
 							val |= retval << 8 ;
-							input_report_abs(idev->input, ABS_X+i, val);
+
+							/*
+							 * at this point, we have val in the range of +- 2G, 4G, 8G
+							 * for the full scale [-32768..32767] values
+							 *
+							 * convert to 8G full scale [-32768*4..32767*4]
+							 */
+							fullscale = (s32)val*(CONFIG_SENSORS_LSM303_ACCELEROMETER_RANGE/2);
+							input_report_abs(idev->input, ABS_X+i, fullscale);
 							captured = 1 ;
 //							printk (KERN_ERR "%c:%04x\n", 'X'+i, val);
 							continue;
@@ -100,8 +112,6 @@ static void accel_poll(struct input_polled_dev *idev)
 
 /*-----------------------------------------------------------------------*/
 /* device probe and removal */
-#define MIN_VALUE -2048
-#define MAX_VALUE 2047
 
 static int
 lsm303_accel_probe(struct i2c_client *client, const struct i2c_device_id *id)
