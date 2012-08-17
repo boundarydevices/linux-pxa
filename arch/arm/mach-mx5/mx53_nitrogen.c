@@ -1772,7 +1772,7 @@ static struct i2c_board_info n53a_i2c4_board_info[] __initdata = {
 static struct i2c_board_info n53a_i2c5_board_info[] __initdata = {
 	{
 	 .type = "lsm303a",		/* Accelerometer */
-	 .addr = 0x19,			//Nitrogen_AP will override this, so keep 1st in array
+	 .addr = 0x18,			//Nitrogen_AP will override this, so keep 1st in array
 	 .platform_data  = &i2c_generic_data,
 	},
 	{
@@ -2036,6 +2036,7 @@ static void __init mxc_board_init_nitrogen_ap(void)
 {
 	unsigned da9052_irq = gpio_to_irq(MAKE_GP(2, 21));	/* pad EIM_A17 */
 
+	mxc_i2c5_board_info_a[0].addr = 0x19;		/* "lsm303a" has different address on AP */
 #if defined(CONFIG_VIDEO_BOUNDARY_CAMERA) || defined(CONFIG_VIDEO_BOUNDARY_CAMERA_MODULE)
 	camera_data.power_down = MAKE_GP(2, 22);
 #endif
