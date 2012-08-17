@@ -65,17 +65,6 @@ static s32 read_reg(struct i2c_client *client, u8 address) {
 #define MIN_VALUE -2048
 #define MAX_VALUE 2047
 
-/*
- * The factory default seems to be 001, which means that each
- * LSB is 1/1100G for X and Y, and 1/980G for Z, which means
- * our range is roughly +- 1.3G.
- *
- * A micro-Tesla is 100G, yielding the following translations:
- */
-#define X_TO_UTESLA(x) ((100*((int)x))/1100)
-#define Y_TO_UTESLA(y) ((100*((int)y))/1100)
-#define Z_TO_UTESLA(z) ((100*((int)z))/980)
-
 static void compass_poll(struct input_polled_dev *idev)
 {
 	struct lsm303_compass *compass = idev ? idev->private : 0 ;
@@ -102,9 +91,6 @@ static void compass_poll(struct input_polled_dev *idev)
                                         bytes[0] = regs[i*2+1];
                                         bytes += 2 ;
 				}
-				readings[0] = X_TO_UTESLA(readings[0]);
-				readings[1] = Z_TO_UTESLA(readings[1]);
-				readings[2] = Y_TO_UTESLA(readings[2]);
 
 				input_report_abs(idev->input, ABS_X, readings[0]);
 				input_report_abs(idev->input, ABS_Y, readings[2]);
@@ -188,9 +174,9 @@ lsm303_compass_probe(struct i2c_client *client, const struct i2c_device_id *id)
 				input_dev->dev.parent = &client->dev;
 
 				set_bit(EV_ABS, input_dev->evbit);
-				input_set_abs_params(input_dev, ABS_X, X_TO_UTESLA(MIN_VALUE), X_TO_UTESLA(MAX_VALUE), 0, 0);
-				input_set_abs_params(input_dev, ABS_Y, Y_TO_UTESLA(MIN_VALUE), Y_TO_UTESLA(MAX_VALUE), 0, 0);
-				input_set_abs_params(input_dev, ABS_Z, Z_TO_UTESLA(MIN_VALUE), Z_TO_UTESLA(MAX_VALUE), 0, 0);
+				input_set_abs_params(input_dev, ABS_X, MIN_VALUE, MAX_VALUE, 0, 0);
+				input_set_abs_params(input_dev, ABS_Y, MIN_VALUE, MAX_VALUE, 0, 0);
+				input_set_abs_params(input_dev, ABS_Z, MIN_VALUE, MAX_VALUE, 0, 0);
 
 				retval = input_register_polled_device(compass->idev);
 				if (0 == retval) {
