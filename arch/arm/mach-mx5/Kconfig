@@ -204,6 +204,24 @@ config DEFAULT_PWM0_BACKLIGHT
 	help
 	Specify initial value for /sys/class/backlight/pwm-backlight.0/brightness
 
+config DEFAULT_PWM0_MIN
+	int "Default PWM0 backlight minimum"
+	range 0 255
+	default 0
+	depends on MXC_PWM
+	depends on BACKLIGHT_PWM
+	help
+	Specify lower bound for /sys/class/backlight/pwm-backlight.0/brightness
+
+config DEFAULT_PWM0_MAX
+	int "Default PWM0 backlight maximum"
+	range 0 255
+	default 255
+	depends on MXC_PWM
+	depends on BACKLIGHT_PWM
+	help
+	Specify upper bound for for /sys/class/backlight/pwm-backlight.0/brightness
+
 config DEFAULT_PWM1_BACKLIGHT
 	int "Default PWM1 backlight value"
 	range 0 255
