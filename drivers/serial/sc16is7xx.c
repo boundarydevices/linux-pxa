@@ -879,7 +879,9 @@ static int receive_chars(struct uart_sc16is7xx_chan *ch)
 				lsr = 0;	/* overrun only valid once */
 			}
 		} else {
-			pr_err("%s: tty undefined %i\n", __func__, ch->channel_no);
+			WARN_ONCE(1, "%s: tty undefined %i\n", __func__, ch->channel_no);
+			ch->port.read_status_mask &= ~UART_LSR_DR;
+			serial_modify_ier(ch, UART_IER_RLSI, 0);
 		}
 break_done:
 		rxlvl -= cnt;
@@ -891,7 +893,9 @@ break_done:
 	if (ch->port.state->port.tty)
 		tty_flip_buffer_push(tty);
 	else {
-		pr_err("%s: tty undefined %i\n", __func__, ch->channel_no);
+		WARN_ONCE(1, "%s: tty undefined %i\n", __func__, ch->channel_no);
+		ch->port.read_status_mask &= ~UART_LSR_DR;
+		serial_modify_ier(ch, UART_IER_RLSI, 0);
 	}
 	return total;
 }
