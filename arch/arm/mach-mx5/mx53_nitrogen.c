@@ -576,7 +576,7 @@ static struct platform_pwm_backlight_data mxc_backlight_data1 = {
 	.dft_brightness = CONFIG_DEFAULT_PWM0_BACKLIGHT,
 	.pwm_period_ns = 1000000000/32768,	/* 30517 */
 #if defined (CONFIG_MACH_MX53_NITROGEN_K) || defined (CONFIG_MACH_NITROGEN_A_IMX53)
-       .usable_range = {1,255},
+       .usable_range = {CONFIG_DEFAULT_PWM0_MIN,CONFIG_DEFAULT_PWM0_MAX},
 #endif
 #ifdef CONFIG_MACH_NITROGEN_A_IMX53
        .notify	= n53a_backlight_notify,
@@ -1787,22 +1787,29 @@ static struct i2c_board_info n53a_i2c5_board_info[] __initdata = {
 	},
 };
 
-/* EDID is here too */
 static struct i2c_board_info n53a_i2c6_board_info[] __initdata = {
-	{
-	 .type = "bq20z75",		/* Battery */
-	 .addr = 0x0b,
-	},
-};
-
-static struct i2c_board_info n53a_i2c7_board_info[] __initdata = {
 	{
 	 .type = "isl1208",
 	 .addr = 0x6f,
 	},
 };
 
+/* EDID is here too */
+static struct i2c_board_info n53a_i2c7_board_info[] __initdata = {
+	{
+	 .type = "bq20z75",		/* Battery */
+	 .addr = 0x0b,
+	},
+};
+
 static struct i2c_board_info n53a_i2c8_board_info[] __initdata = {
+	{
+	 .type = "bq20z75",		/* 2nd Battery */
+	 .addr = 0x0b,
+	},
+};
+
+static struct i2c_board_info n53a_i2c9_board_info[] __initdata = {
 	{
 	 .type = "sc16is7xx-uart",
 	 .addr = 0x49,
@@ -1813,18 +1820,20 @@ static struct i2c_board_info n53a_i2c8_board_info[] __initdata = {
 #endif
 
 #ifdef CONFIG_MACH_NITROGEN_A_IMX53
-/* i2c3-i2c7, Middle i2C bus has a switch */
+/* i2c3-i2c8, Middle i2C bus has a switch */
 static const unsigned n53a_i2c2_gpiomux_gpios[] = {
-	/* i2c3- i2c7*/
-	MAKE_GP(3, 7),		/* EIM_DA7 - PIC16F616_TOUCH */
-	MAKE_GP(3, 10),		/* EIM_DA10 - Camera */
-	MAKE_GP(3, 11),		/* EIM_DA11 - TFP410_ACCEL*/
-	MAKE_GP(6, 11),		/* NANDF_CS0 - BATT_EDID */
-	MAKE_GP(6, 12)		/* NANDF_WE - rtc isl1208 */
+	/* i2c3- i2c8*/
+	MAKE_GP(3, 6),		/* 1 - EIM_DA6 - battery select */
+	MAKE_GP(3, 7),		/* 2 - EIM_DA7 - PIC16F616_TOUCH */
+	MAKE_GP(3, 10),		/* 4 - EIM_DA10 - Camera */
+	MAKE_GP(3, 11),		/* 8 - EIM_DA11 - TFP410_ACCEL*/
+	MAKE_GP(6, 11),		/* 16 - NANDF_CS0 - BATT_EDID */
+	MAKE_GP(6, 12),		/* 32 - NANDF_WE - rtc isl1208 */
 };
 
 static const unsigned n53a_i2c2_gpiomux_values[] = {
-	1, 2, 4, 8, 16
+/* bus	3  4  5   6   7   8 */
+	2, 4, 8, 32, 16, 16 | 1,
 };
 
 static struct gpio_i2cmux_platform_data n53a_i2c2_i2cmux_data = {
@@ -1845,9 +1854,9 @@ static struct platform_device n53a_i2c2_i2cmux = {
         },
 };
 
-/* i2c8, Last i2C bus has a buffer for UART */
+/* i2c9, Last i2C bus has a buffer for UART */
 static const unsigned n53a_i2c3_gpiomux_gpios[] = {
-	/* i2c8*/
+	/* i2c9*/
 	MAKE_GP(6, 10)		/* NANDF_RB0 - SC16IS7XX */
 };
 
@@ -1857,7 +1866,7 @@ static const unsigned n53a_i2c3_gpiomux_values[] = {
 
 static struct gpio_i2cmux_platform_data n53a_i2c3_i2cmux_data = {
 	.parent		= 2,
-	.base_nr	= 8, /* optional */
+	.base_nr	= 9, /* optional */
 	.values		= n53a_i2c3_gpiomux_values,
 	.n_values	= ARRAY_SIZE(n53a_i2c3_gpiomux_values),
 	.gpios		= n53a_i2c3_gpiomux_gpios,
@@ -1988,9 +1997,10 @@ static void __init mxc_board_init_nitrogen_a(void)
 	i2c_register_board_info(5, n53a_i2c5_board_info, ARRAY_SIZE(n53a_i2c5_board_info));
 	i2c_register_board_info(6, n53a_i2c6_board_info, ARRAY_SIZE(n53a_i2c6_board_info));
 	i2c_register_board_info(7, n53a_i2c7_board_info, ARRAY_SIZE(n53a_i2c7_board_info));
+	i2c_register_board_info(8, n53a_i2c8_board_info, ARRAY_SIZE(n53a_i2c8_board_info));
 
 	mxc_register_device(&n53a_i2c3_i2cmux, &n53a_i2c3_i2cmux_data);
-	i2c_register_board_info(8, n53a_i2c8_board_info, ARRAY_SIZE(n53a_i2c8_board_info));
+	i2c_register_board_info(9, n53a_i2c9_board_info, ARRAY_SIZE(n53a_i2c9_board_info));
 
 	mxc_register_device(&mxc_bt_rfkill, &mxc_bt_rfkill_data);
 }
