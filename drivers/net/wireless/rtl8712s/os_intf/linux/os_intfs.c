@@ -406,6 +406,7 @@ void start_drv_timers (_adapter *padapter)
 
 void stop_drv_timers (_adapter *padapter)
 {
+	pr_info("Cancelling drv timers\n");
 	RT_TRACE(_module_os_intfs_c_,_drv_info_,("+stop_drv_timers\n"));
 
 	_cancel_timer_ex(&padapter->mlmepriv.assoc_timer);
@@ -430,6 +431,24 @@ void stop_drv_timers (_adapter *padapter)
 
 	_cancel_timer_ex(&padapter->mlmepriv.wdg_timer);
 	RT_TRACE(_module_os_intfs_c_,_drv_info_,("stop_drv_timers:cancel wdg_timer! \n"));
+
+#ifdef CONFIG_MLME_EXT
+	_cancel_timer_ex(&padapter->mlmeextpriv.survey_timer);
+	RT_TRACE(_module_os_intfs_c_,_drv_info_,("ext: cancel survey_timer\n"));
+
+	_cancel_timer_ex(&padapter->mlmeextpriv.reauth_timer);
+	RT_TRACE(_module_os_intfs_c_,_drv_info_,("ext: cancel reauth_timer!\n"));
+
+	_cancel_timer_ex(&padapter->mlmeextpriv.reassoc_timer);
+	RT_TRACE(_module_os_intfs_c_,_drv_info_,("ext: cancel reassoc_timer!\n"));
+
+	_cancel_timer_ex(&padapter->mlmeextpriv.disconnect_timer);
+	RT_TRACE(_module_os_intfs_c_,_drv_info_,("ext: cancel disconnect_timer!\n"));
+#endif
+
+	_cancel_timer_ex(&padapter->ledpriv.SwLed0.BlinkTimer);
+	_cancel_timer_ex(&padapter->ledpriv.SwLed1.BlinkTimer);
+	_cancel_timer_ex(&padapter->pwrctrlpriv.rpwm_check_timer);
 }
 
 u8 init_default_value(_adapter *padapter)
