@@ -1214,7 +1214,6 @@ axusbnet_probe(struct usb_interface *udev, const struct usb_device_id *prod)
 {
 	struct usbnet			*dev;
 	struct net_device		*net;
-	struct usb_host_interface	*interface;
 	struct driver_info		*info;
 	struct usb_device		*xdev;
 	int				status;
@@ -1227,7 +1226,6 @@ axusbnet_probe(struct usb_interface *udev, const struct usb_device_id *prod)
 		return -ENODEV;
 	}
 	xdev = interface_to_usbdev(udev);
-	interface = udev->cur_altsetting;
 
 	usb_get_dev(xdev);
 

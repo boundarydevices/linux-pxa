@@ -809,7 +809,6 @@ static int ax88772b_suspend(struct usb_interface *intf,
 	struct ax88772b_data *ax772b_data = (struct ax88772b_data *)dev->priv;
 	u16 *tmp16;
 	u8 *opt;
-	u32 tmp32;
 
 	tmp16 = kmalloc(2, GFP_ATOMIC);
 	if (!tmp16)
@@ -1887,7 +1886,6 @@ static int ax88772b_bind(struct usbnet *dev, struct usb_interface *intf)
 	struct ax8817x_data *data = (struct ax8817x_data *)&dev->data;
 	struct ax88772b_data *ax772b_data;
 	u16 *tmp16;
-	u8 i;
 	u8 tempphyselect;
 	bool internalphy;
 
