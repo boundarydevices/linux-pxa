@@ -1068,6 +1068,83 @@ static const struct net_device_ops ax88178_netdev_ops = {
 };
 #endif
 
+static unsigned char g_ethaddr1[ETH_ALEN];
+static unsigned char g_ethaddr2[ETH_ALEN];
+
+static int __init parse_mac(unsigned char *mac, unsigned char const *str_mac)
+{
+	int i = 0;
+	char *end;
+	int ret = -EINVAL;
+
+	for (;;) {
+		mac[i++] = simple_strtoul(str_mac, &end, 16);
+		if (i == 6) {
+			if (!*end || (*end == ' '))
+				ret = 0;
+			break;
+		}
+		str_mac = end + 1;
+		if ((*end != '-') && (*end != ':'))
+			break;
+	}
+	return ret;
+}
+
+static int __init ethaddr1_setup(char *options)
+{
+	if (!strsep(&options, "="))
+		return 1;
+	if (parse_mac(g_ethaddr1, options))
+		memset(g_ethaddr1, 0, ETH_ALEN);
+	return 1;
+}
+
+static int __init ethaddr2_setup(char *options)
+{
+	if (!strsep(&options, "="))
+		return 1;
+	if (parse_mac(g_ethaddr2, options))
+		memset(g_ethaddr2, 0, ETH_ALEN);
+	return 1;
+}
+
+__setup("ethaddr1", ethaddr1_setup);
+__setup("ethaddr2", ethaddr2_setup);
+
+
+
+void ax8817x_get_mac(struct usbnet *dev, void *buf)
+{
+	int ret;
+	if (dev->udev->bus->busnum <= 2) {
+		/* allow mac overrides */
+		unsigned char* p = g_ethaddr1;
+		if (dev->udev->bus->busnum > 1)
+			p = g_ethaddr2;
+		if (is_valid_ether_addr(p)) {
+			memcpy(dev->net->dev_addr, p, ETH_ALEN);
+			memset(p, 0, ETH_ALEN);	/* don't use again */
+			goto out1;
+		}
+	}
+	memset(buf, 0, ETH_ALEN);
+	if ((ret = ax8817x_read_cmd(dev, AX88772_CMD_READ_NODE_ID,
+				0, 0, ETH_ALEN, buf)) < 0) {
+		deverr(dev, "Failed to read MAC address: %d", ret);
+		memset(buf, 0, ETH_ALEN);
+	}
+	if (is_valid_ether_addr(buf)) {
+		memcpy(dev->net->dev_addr, buf, ETH_ALEN);
+		return;
+	}
+	random_ether_addr(dev->net->dev_addr);
+out1:
+	/* Set the MAC address */
+	ax8817x_write_cmd (dev, AX88772_CMD_WRITE_NODE_ID,
+			   0, 0, ETH_ALEN, dev->net->dev_addr);
+}
+
 static int ax8817x_bind(struct usbnet *dev, struct usb_interface *intf)
 {
 	int ret = 0;
@@ -1102,13 +1179,7 @@ static int ax8817x_bind(struct usbnet *dev, struct usb_interface *intf)
 	}
 
 	/* Get the MAC address */
-	memset(buf, 0, ETH_ALEN);
-	ret = ax8817x_read_cmd(dev, AX_CMD_READ_NODE_ID, 0, 0, 6, buf);
-	if (ret < 0) {
-		deverr(dev, "read AX_CMD_READ_NODE_ID failed: %d", ret);
-		goto out2;
-	}
-	memcpy(dev->net->dev_addr, buf, ETH_ALEN);
+	ax8817x_get_mac(dev, buf);
 
 	/* Get the PHY id */
 	ret = ax8817x_read_cmd(dev, AX_CMD_READ_PHY_ID, 0, 0, 2, buf);
@@ -1303,14 +1374,7 @@ static int ax88772_bind(struct usbnet *dev, struct usb_interface *intf)
 	}
 
 	/* Get the MAC address */
-	memset(buf, 0, ETH_ALEN);
-	ret = ax8817x_read_cmd(dev, AX88772_CMD_READ_NODE_ID, 0, 0,
-			       ETH_ALEN, buf);
-	if (ret < 0) {
-		deverr(dev, "Failed to read MAC address: %d", ret);
-		goto out2;
-	}
-	memcpy(dev->net->dev_addr, buf, ETH_ALEN);
+	ax8817x_get_mac(dev, buf);
 
 	ret = ax8817x_write_cmd(dev, AX_CMD_SET_SW_MII, 0, 0, 0, NULL);
 	if (ret < 0) {
@@ -1584,14 +1648,7 @@ static int ax88772a_bind(struct usbnet *dev, struct usb_interface *intf)
 	}
 
 	/* Get the MAC address */
-	memset(buf, 0, ETH_ALEN);
-	ret = ax8817x_read_cmd(dev, AX88772_CMD_READ_NODE_ID,
-			       0, 0, ETH_ALEN, buf);
-	if (ret < 0) {
-		deverr(dev, "Failed to read MAC address: %d", ret);
-		goto out2;
-	}
-	memcpy(dev->net->dev_addr, buf, ETH_ALEN);
+	ax8817x_get_mac(dev, buf);
 
 	/* make sure the driver can enable sw mii operation */
 	ret = ax8817x_write_cmd(dev, AX_CMD_SET_SW_MII, 0, 0, 0, NULL);
@@ -1900,16 +1957,7 @@ static int ax88772b_bind(struct usbnet *dev, struct usb_interface *intf)
 	/* End of get EEPROM data */
 
 	/* Get the MAC address from EEPROM */
-	memset(buf, 0, ETH_ALEN);
-	for (i = 0; i < (ETH_ALEN >> 1); i++) {
-		ret = ax8817x_read_cmd(dev, AX_CMD_READ_EEPROM,
-					0x04 + i, 0, 2, (buf + i * 2));
-		if (ret < 0) {
-			deverr(dev, "read SROM address 04h failed: %d", ret);
-			goto err_out;
-		}
-	}
-	memcpy(dev->net->dev_addr, buf, ETH_ALEN);
+	ax8817x_get_mac(dev, buf);
 
 	/* Set the MAC address */
 	ret = ax8817x_write_cmd(dev, AX88772_CMD_WRITE_NODE_ID,
@@ -2966,14 +3014,7 @@ static int ax88178_bind(struct usbnet *dev, struct usb_interface *intf)
 	}
 
 	/* Get the MAC address */
-	memset(buf, 0, ETH_ALEN);
-	ret = ax8817x_read_cmd(dev, AX88772_CMD_READ_NODE_ID,
-			       0, 0, ETH_ALEN, buf);
-	if (ret < 0) {
-		deverr(dev, "read AX_CMD_READ_NODE_ID failed: %d", ret);
-		goto error_out;
-	}
-	memcpy(dev->net->dev_addr, buf, ETH_ALEN);
+	ax8817x_get_mac(dev, buf);
 	/* End of get MAC address */
 
 	ret = ax88178_phy_init(dev, ax178dataptr);
