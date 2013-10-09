@@ -2317,7 +2317,7 @@ void vpbe_davincifb_lcd_component_config(void)
 		dispc_reg_out(VENC_HSPLS, TO_ENC(disp->hsync_len, enc_mult, enc_div));
 		dispc_reg_out(VENC_VSPLS,disp->vsync_len);
 		totalh = disp->xres+disp->hsync_len+disp->left_margin+disp->right_margin;
-		dispc_reg_out(VENC_HINT, TO_ENC((totalh-1), enc_mult, enc_div));
+		dispc_reg_out(VENC_HINT, TO_ENC(totalh, enc_mult, enc_div) - 1);
 		dispc_reg_out(VENC_HSTART, TO_ENC(hstart, enc_mult, enc_div));
 		dispc_reg_out(VENC_HVALID, TO_ENC(disp->xres, enc_mult, enc_div));
 		totalv = disp->yres+disp->vsync_len+disp->upper_margin+disp->lower_margin;
