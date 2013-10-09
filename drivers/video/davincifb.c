@@ -2289,6 +2289,107 @@ static int setPixClock(u32 mhz, u32 *penc_mult, u32 *penc_div)
 	return pixel_clk;
 }
 /*****************************************************/
+/*
+ * Example mul = 5, div = 14, 2.8 width cell, actual waveform
+ * |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  | 10  | 11  | 12  | 13  |
+ * |     |     |11111|11111|22222|22222|33333|33333|44444|44444|55555|55555|66666|66666|
+ * |01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|
+ * |    _|__1__|_    |    _|_1___|     |  ___|1___ |     | ___1|___  |     |___1_|__   |
+ * |  0  |  1  |  0  |  0  |  1  |  0  |  1  |  1  |  0  |  1  |  1  |  0  |  1  |  0  |
+ *
+ * Example mul = 2, div = 7
+ * |0 |1 |2 |3 |4 |5 |6 |
+ * |  |  |  |  |  |11|11|
+ * |01|23|45|67|89|01|23|
+ * |  |_1|_ |  | _|1_|  |
+ * |0 |1 |0 |0 |0 |1 |0 |
+ *
+ * Example mul = 2, div = 6
+ * |0 |1 |2 |3 |4 |5 |
+ * |  |  |  |  |  |11|
+ * |01|23|45|67|89|01|
+ * |  |1 |  |  |1 |  |
+ * |0 |1 |0 |0 |1 |0 |
+ *
+ * Example mul = 1, div = 3
+ * |0 |1 |2 |
+ * |  |  |  |
+ * |0 |1 |2 |
+ * |  |1 |  |
+ * |0 |1 |0 |
+ */
+#if 0
+#define BIT_FIRST	0
+#define BIT_NEXT(bit)	(bit + 1)
+#define BIT_DONE(bit)	(bit > last)
+#else
+#define BIT_FIRST	last
+#define BIT_NEXT(bit)	(bit - 1)
+#define BIT_DONE(bit)	(bit < 0)
+#endif
+
+static void get_pattern_levels(unsigned enc_mult, unsigned enc_div, int last, unsigned short *val)
+{
+	u32 setbits = enc_div >> 1;
+	u32 min = (enc_mult >> 1) + 1;
+	int bit = BIT_FIRST;
+	u32 gbit = setbits - (setbits >> 1);	//Start in middle of 1st bit
+	while (1) {
+		u32 bits_set_in_cell;
+		while (gbit >= enc_mult) {
+			gbit -= enc_mult;
+			bit = BIT_NEXT(bit);
+		}
+		if (BIT_DONE(bit))
+			break;
+		bits_set_in_cell = (enc_mult - gbit);
+		if (bits_set_in_cell >= min)
+			val[bit>>4] |= (1<<(bit&0xf));
+		{
+			int tbit = BIT_NEXT(bit);
+			u32 width = setbits - bits_set_in_cell;
+			while (width >= enc_mult) {
+				if (BIT_DONE(tbit))
+					break;
+				val[tbit>>4] |= (1<<(tbit&0xf));
+				width -= enc_mult;
+				tbit = BIT_NEXT(tbit);
+			}
+			if (BIT_DONE(tbit))
+				break;
+			if (width >= min)
+				val[tbit>>4] |= (1<<(tbit&0xf));
+		}
+		gbit += enc_div;
+	}
+}
+
+/*
+ *
+ *
+ * Example mul = 7, div = 8, 1 means pixel clock here
+ * |   0   |   1   |   2   |   3   |   4   |   5   |   6   |   7   |
+ * |       |   1111|1111112|2222222|2233333|3333344|4444444|4555555|
+ * |0123456|7890123|4567890|1234567|8901234|5678901|2345678|9012345|
+ * |    1  |     1 |      1|       |1      | 1     |  1    |   1   |
+ * |   1   |   1   |   1   |   0   |   1   |   1   |   1   |   1   |
+ *
+ */
+static void get_pattern_active(unsigned enc_mult, unsigned enc_div, int last, unsigned short *val)
+{
+	u32 bit = 0;
+	u32 gbit = enc_div >> 1;	//Start in middle of 1st bit
+	while (1) {
+		while (gbit >= enc_mult) {
+			gbit -= enc_mult;
+			bit++;
+		}
+		if (bit >= 64)
+			break;
+		val[bit>>4] |= (1<<(bit&0xf));
+		gbit += enc_div;
+	}
+}
 
 void vpbe_davincifb_lcd_component_config(void)
 {
@@ -2298,6 +2399,7 @@ void vpbe_davincifb_lcd_component_config(void)
 		int dclkctl;
 		int enc_mult = disp->enc_mult;
 		int enc_div = disp->enc_div;
+		int md;
 		unsigned short val[4];
 		int totalh, totalv;
 		hstart = disp->hsync_len + disp->left_margin;
@@ -2334,93 +2436,16 @@ void vpbe_davincifb_lcd_component_config(void)
 		val[1] = 0;
 		val[2] = 0;
 		val[3] = 0;
-		dclkctl = ((64 / enc_div) * enc_div) - 1;
+		dclkctl = md = enc_mult * enc_div;
+		while (dclkctl > 64)
+			dclkctl -= enc_mult;
+		while (dclkctl + md <= 64)
+			dclkctl += md;
+		dclkctl--;
 		if ((enc_mult * 2) <= enc_div) {
-	/*
-	 * Example mul = 5, div = 14, 2.8 width cell, actual waveform
-	 * |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  | 10  | 11  | 12  | 13  |
-	 * |     |     |11111|11111|22222|22222|33333|33333|44444|44444|55555|55555|66666|66666|
-	 * |01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|
-	 * |    _|__1__|_    |    _|_1___|     |  ___|1___ |     | ___1|___  |     |___1_|__   |
-	 * |  0  |  1  |  0  |  0  |  1  |  0  |  1  |  1  |  0  |  1  |  1  |  0  |  1  |  0  |
-	 *
-	 * Example mul = 2, div = 7
-	 * |0 |1 |2 |3 |4 |5 |6 |
-	 * |  |  |  |  |  |11|11|
-	 * |01|23|45|67|89|01|23|
-	 * |  |_1|_ |  | _|1_|  |
-	 * |0 |1 |0 |0 |0 |1 |0 |
-	 *
-	 * Example mul = 2, div = 6
-	 * |0 |1 |2 |3 |4 |5 |
-	 * |  |  |  |  |  |11|
-	 * |01|23|45|67|89|01|
-	 * |  |1 |  |  |1 |  |
-	 * |0 |1 |0 |0 |1 |0 |
-	 *
-	 * Example mul = 1, div = 3
-	 * |0 |1 |2 |
-	 * |  |  |  |
-	 * |0 |1 |2 |
-	 * |  |1 |  |
-	 * |0 |1 |0 |
-	 */
-			u32 setbits = enc_div >> 1;
-			u32 min = (enc_mult >> 1) + 1;
-			u32 bit = 0;
-			u32 gbit = setbits - (setbits >> 1);	//Start in middle of 1st bit
-			while (1) {
-				u32 bits_set_in_cell;
-				while (gbit >= enc_mult) {
-					gbit -= enc_mult;
-					bit++;
-				}
-				if (bit >= 64)
-					break;
-				bits_set_in_cell = (enc_mult - gbit);
-				if (bits_set_in_cell >= min)
-					val[bit>>4] |= (1<<(bit&0xf));
-				{
-					u32 tbit = bit+1;
-					u32 width = setbits - bits_set_in_cell;
-					while (width >= enc_mult) {
-						if (tbit >= 64)
-							break;
-						val[tbit>>4] |= (1<<(tbit&0xf));
-						width -= enc_mult;
-						tbit++;
-					}
-					if (tbit >= 64)
-						break;
-					if (width >= min)
-						val[tbit>>4] |= (1<<(tbit&0xf));
-				}
-				gbit += enc_div;
-			}
+			get_pattern_levels(enc_mult, enc_div, dclkctl, val);
 		} else {
-	/*
-	 *
-	 *
-	 * Example mul = 7, div = 8, 1 means pixel clock here
-	 * |   0   |   1   |   2   |   3   |   4   |   5   |   6   |   7   |
-	 * |       |   1111|1111112|2222222|2233333|3333344|4444444|4555555|
-	 * |0123456|7890123|4567890|1234567|8901234|5678901|2345678|9012345|
-	 * |    1  |     1 |      1|       |1      | 1     |  1    |   1   |
-	 * |   1   |   1   |   1   |   0   |   1   |   1   |   1   |   1   |
-	 *
-	 */
-			u32 bit = 0;
-			u32 gbit = enc_div >> 1;	//Start in middle of 1st bit
-			while (1) {
-				while (gbit >= enc_mult) {
-					gbit -= enc_mult;
-					bit++;
-				}
-				if (bit >= 64)
-					break;
-				val[bit>>4] |= (1<<(bit&0xf));
-				gbit += enc_div;
-			}
+			get_pattern_active(enc_mult, enc_div, dclkctl, val);
 			dclkctl |= (1 << 11);
 		}
 		dispc_reg_out(VENC_DCLKCTL, dclkctl);
