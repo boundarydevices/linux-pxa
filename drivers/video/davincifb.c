@@ -558,8 +558,7 @@ void vpbe_set_display_default()
 	dispc_reg_out(VENC_SYNCCTL, 0);
 	dispc_reg_out(VENC_OSDCLK0, 1);
 	dispc_reg_out(VENC_OSDCLK1, 2);
-//	dispc_reg_out(VPSS_CLKCTL, 0);
-	dispc_reg_out(VPSS_CLKCTL, 0x8);  // select 27 MHz clock
+	dispc_reg_out(VPSS_CLKCTL, 0);
 	dispc_reg_out(VENC_HSPLS, 0);
 	dispc_reg_out(VENC_HSTART, 0);
 	dispc_reg_out(VENC_HVALID, 0);
@@ -1922,8 +1921,7 @@ void vpbe_davincifb_lcd_component_config(void)
 
 		/* Reset video encoder module */
 		dispc_reg_out(VENC_VMOD, 0);
-//		dispc_reg_out(VPSS_CLKCTL, 0x09);	//disable DAC clock
-		dispc_reg_out(VPSS_CLKCTL, 0x08);	// select 27 MHz clock
+		dispc_reg_out(VPSS_CLKCTL, 0x09);	//disable DAC clock
 		dispc_reg_out(VPBE_PCR, 0);		//not divided by 2
 //		dispc_reg_out(VPBE_PCR, 2);		//divided by 2
 		dispc_reg_out(VENC_VIDCTL,((disp->pPol^1)<<14)|(1<<13));
@@ -2159,8 +2157,7 @@ void set_dm_default_conf()
 	/* Configure defaults in registers */
 
 	/* Initialize the VPSS Clock Control register */
-//	dispc_reg_out(VPSS_CLKCTL, 0x18);
-	dispc_reg_out(VPSS_CLKCTL, 0x08);  // select 27 MHz clock
+	dispc_reg_out(VPSS_CLKCTL, 0x18);
 
 	/* Reset OSD registers to default. */
 	dispc_reg_out(OSD_MODE, 0);
