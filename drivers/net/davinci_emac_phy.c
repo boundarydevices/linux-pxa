@@ -314,6 +314,8 @@ void emac_mdio_phy_reset(unsigned int phy_addr)
 	control = emac_mdio_read(phy_addr, 26);
 	emac_mdio_write(phy_addr, 26, (control | 0x800));
 	control = emac_mdio_read(phy_addr, 26);
+
+	emac_mdio_write(phy_addr, 0x14, 0xC1F2); //configure LXT972M LEDs
 }
 
 /* Timeout condition handler in PHY state machine */
