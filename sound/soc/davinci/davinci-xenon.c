@@ -9,6 +9,8 @@
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ * Modified to disable DaVinci GPIO muting function
  */
 
 #include <linux/module.h>
@@ -43,17 +45,17 @@
 
 static int xenon_startup(struct snd_pcm_substream *substream)
 {
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		gpio_direction_output(MUTE_GPIO,NOTMUTED);
-	}
+//	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+//		gpio_direction_output(MUTE_GPIO,NOTMUTED);
+//	}
 	return 0;
 }
 
 static void xenon_shutdown(struct snd_pcm_substream *substream)
 {
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		gpio_direction_output(MUTE_GPIO,MUTED);
-	}
+//	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+//		gpio_direction_output(MUTE_GPIO,MUTED);
+//	}
 }
 
 static int xenon_hw_params(struct snd_pcm_substream *substream,
