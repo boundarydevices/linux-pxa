@@ -49,9 +49,9 @@
 /*
  * display controller register I/O routines
  */
-u32 dispc_reg_in(u32 offset);
-u32 dispc_reg_out(u32 offset, u32 val);
-u32 dispc_reg_merge(u32 offset, u32 val, u32 mask);
+u32 dispc_reg_in(void *offset);
+u32 dispc_reg_out(void *offset, u32 val);
+u32 dispc_reg_merge(void *offset, u32 val, u32 mask);
 
 #endif				/*__KERNEL__*/
 

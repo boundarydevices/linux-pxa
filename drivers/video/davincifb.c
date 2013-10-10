@@ -32,6 +32,7 @@
 #include <linux/delay.h>
 #include <linux/fb.h>
 #include <linux/init.h>
+#include <linux/clk.h>
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
@@ -40,6 +41,7 @@
 #include <linux/moduleparam.h>	/* for module_param() */
 #include <asm/system.h>
 #include <video/davincifb.h>
+#include <video/davincifb_config.h>
 #include "davincifb_regs.h"
 #include "davincifb.h"
 #include <mach/edma.h>
@@ -54,35 +56,30 @@
 
 #define LCD_PANEL 0
 #define CRT 1
-//              xres,xsyncWidth,xbegin,xend, yres,ysyncWidth,ybegin,yend,
-//			vsPol,hsPol,pPol,oePol,dPol,
-//					 enable,unscramble,rotate,active,vSyncHz,type
-#define hitachi_qvga_P 320, 64, 1, 16,		240, 20, 8, 3,	0,0,1,0,0,	1,0,0,1,62,LCD_PANEL
-#define sharp_qvga_P   320, 20, 1, 30,		240, 4, 17, 3,	0,0,1,0,0,	1,0,0,1,62,LCD_PANEL
-#define okaya_qvga_P   320, 30,37, 38,		240, 3, 16, 15,	1,1,0,0,0,	1,0,0,1,120,LCD_PANEL
-#define okaya_480x272_P 480, 3,20, 38,		272, 3, 5, 15,	1,1,1,0,0,	1,0,0,1,62,LCD_PANEL
-#define hitachi_hvga_P  640, 64, 34, 1,		240, 20, 8, 3,	0,0,1,0,0,	1,1,0,1,62,LCD_PANEL
-#define hitachi_wvga_P  800, 64, 34, 1,		480, 20, 8, 3,	0,0,1,0,0,	1,1,0,1,62,LCD_PANEL
-#define sharp_vga_P  640, 64, 34,105,		480, 20, 8,14,	0,0,1,0,0,	1,1,0,1,62,LCD_PANEL
-#define qvga_portrait_P  240, 64, 34, 1,	320, 20, 8, 3,	0,0,1,0,0,	1,0,1,1,62,LCD_PANEL
-#define lcd_svga_P  800, 64, 32,152,		600,  3, 1,27,	1,1,0,0,0,	1,1,0,1,62,LCD_PANEL
-#define crt800x600_P  800, 64, 32,152,		600,  3, 1,27,	1,1,0,0,0,	1,1,0,1,62,CRT
-#define gvision_P  800, 64, 32,16,		600,  8, 3,2,	1,1,0,0,0,	1,1,0,1,62,LCD_PANEL
-#define crt1024x768_P 1024,0xe4,0x3c,0x70,	768,0x0c,0x0b,0x20, 0,0,1,0,0,	1,1,0,1,62,CRT
-#define hitachi_92_P 960,15,220,1,    160,	200,148,3,	0,0,1,0,0,	1,0,0,1,62,LCD_PANEL
-#define tovis_w_P	1024,104,56,160,	200,3,201,11,	1,1,0,0,0,	1,0,0,1,75,CRT
-#define hitachi_wxga_P	1024,64,1,39,		768,20,8,3,	1,1,1,0,0,	1,0,0,1,75,LCD_PANEL
-#define hitachi_154_P 1280,64, 24,16,	800, 20, 4, 3,	1,1,0,0,0,	1,0,0,1,62,LCD_PANEL
-#define samsung1600x1050 1600,104,128,264,	1050, 4, 2, 44,	1,1,0,0,0,	1,0,0,1,62,LCD_PANEL
+//              xres,hsync_len,left_margin,right_margin, yres,vsync_len,upper_margin,lower_margin,
+//			vsyn_acth,hsyn_acth,pclk_redg,oepol_actl,dPol,
+//					 enable,unscramble,rotation,active,vSyncHz,crt
+#define hitachi_qvga_P		0, 320, 64, 1, 16,	240, 20, 8, 3,	0,0,1,0,0,	1,0,0,1,62,LCD_PANEL
+#define sharp_qvga_P		0, 320, 20, 1, 30,	240, 4, 17, 3,	0,0,1,0,0,	1,0,0,1,62,LCD_PANEL
+#define okaya_qvga_P		0, 320, 30,37, 38,	240, 3, 16, 15,	1,1,0,0,0,	1,0,0,1,120,LCD_PANEL
+#define okaya_480x272_P		0, 480, 3,20, 38,	272, 3, 5, 15,	1,1,1,0,0,	1,0,0,1,62,LCD_PANEL
+#define hitachi_hvga_P		0, 640, 64, 34, 1,	240, 20, 8, 3,	0,0,1,0,0,	1,1,0,1,62,LCD_PANEL
+#define hitachi_wvga_P		0, 800, 64, 34, 1,	480, 20, 8, 3,	0,0,1,0,0,	1,1,0,1,62,LCD_PANEL
+#define sharp_vga_P		0, 640, 64, 34,105,	480, 20, 8,14,	0,0,1,0,0,	1,1,0,1,62,LCD_PANEL
+#define qvga_portrait_P		0, 240, 64, 34, 1,	320, 20, 8, 3,	0,0,1,0,0,	1,0,1,1,62,LCD_PANEL
+#define lcd_svga_P		0, 800, 64, 32,152,	600,  3, 1,27,	1,1,0,0,0,	1,1,0,1,62,LCD_PANEL
+#define crt800x600_P		0, 800, 64, 32,152,	600,  3, 1,27,	1,1,0,0,0,	1,1,0,1,62,CRT
+#define gvision_P		0, 800, 64, 32,16,	600,  8, 3,2,	1,1,0,0,0,	1,1,0,1,62,LCD_PANEL
+#define crt1024x768_P		0,1024,0xe4,0x3c,0x70,	768,0x0c,0x0b,0x20, 0,0,1,0,0,	1,1,0,1,62,CRT
+#define hitachi_92_P		0, 960,15,220,1,	160,200,148,3,	0,0,1,0,0,	1,0,0,1,62,LCD_PANEL
+#define tovis_w_P		0,1024,104,56,160,	200,3,201,11,	1,1,0,0,0,	1,0,0,1,75,CRT
+#define hitachi_wxga_P		0,1024,64,1,39,		768,20,8,3,	1,1,1,0,0,	1,0,0,1,75,LCD_PANEL
+#define hitachi_154_P		0,1280,64, 24,16,	800, 20, 4, 3,	1,1,0,0,0,	1,0,0,1,62,LCD_PANEL
+#define samsung1600x1050	0,1600,104,128,264,	1050, 4, 2, 44,	1,1,0,0,0,	1,0,0,1,62,LCD_PANEL
 
-typedef struct
-{
-	unsigned short xRes,xSyncWidth,xBegin,xEnd;
-	unsigned short yRes,ySyncWidth,yBegin,yEnd;
-	unsigned char vsPol,hsPol,pPol,oePol,dPol;
-	unsigned char enable,unscramble,rotate,active,vSyncHz,type;
-	unsigned char encPerPixel;
-} DISPLAYCFG;
+DISPLAYCFG cur_display_settings;
+
+int davincifb_setup(const DISPLAYCFG* disp, char *options);
 
 const DISPLAYCFG stdDisplayTypes[] = {
 	{hitachi_qvga_P},	//0
@@ -382,20 +379,20 @@ struct vpbe_fb_videomode *modelist[] =
 /*
  * display controller register I/O routines
  */
-u32 dispc_reg_in(u32 offset)
+u32 dispc_reg_in(void *offset)
 {
 	return (inl(offset));
 }
 
-u32 dispc_reg_out(u32 offset, u32 val)
+u32 dispc_reg_out(void *offset, u32 val)
 {
 	outl(val, offset);
 	return (val);
 }
 
-u32 dispc_reg_merge(u32 offset, u32 val, u32 mask)
+u32 dispc_reg_merge(void *offset, u32 val, u32 mask)
 {
-	u32 addr = offset;
+	u32 addr = (u32)offset;
 	u32 new_val = (inl(addr) & ~mask) | (val & mask);
 	outl(new_val, addr);
 	return (new_val);
@@ -549,8 +546,6 @@ void vpbe_set_display_default()
 	dispc_reg_out(VENC_VMOD, 0);
 	dispc_reg_out(VENC_CVBS, 0);
 	dispc_reg_out(VENC_CMPNT, 0x100);
-	davinci_mux_peripheral(DAVINCI_MUX_RGB888,0);
-	davinci_mux_peripheral(DAVINCI_MUX_LOEEN,0);
 	dispc_reg_out(VENC_LCDOUT, 0);
 	dispc_reg_out(VENC_VIDCTL, 0x141);
 	dispc_reg_out(VENC_DCLKCTL, 0);
@@ -661,8 +656,8 @@ static int davinci_resizer(struct vpfe_resizer_params* prsz,struct vpbe_dm_win_i
 	if (ret<0) return ret;
 
 	{
-		unsigned int reg = RSZ_RSZ_CNT;
-		unsigned int regStop = RSZ_YENH;
+		void *reg = RSZ_RSZ_CNT;
+		void *regStop = RSZ_YENH;
 		u_int32_t* p = &prsz->rsz_cnt;
 		unsigned int start = prsz->sdr_outadd;
 		if ( (start >= w->fb_base_phys)&&(start < (w->fb_base_phys+w->fb_size)) ) {
@@ -1658,6 +1653,86 @@ davincifb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
 				return -EFAULT;
 			return davincifb_fill_rect(info,&rect);
 		}
+#ifdef FBIO_PANEL_FROM_HSYNC
+	case FBIO_PANEL_FROM_HSYNC:
+	{
+		const char *name_buf;
+		const char *user_name_buf;
+		struct vpbe_panel_from_hsync panel;
+		if (copy_from_user(&panel, argp, sizeof(panel)))
+			return -EFAULT;
+		user_name_buf = panel.panel.name;
+		if (calc_settings_from_hsync_vsync(&panel) >= 0) {
+			name_buf = panel.panel.name;
+			panel.panel.name = user_name_buf;
+			if (copy_to_user(argp, &panel, sizeof(panel)))
+				return -EFAULT;
+			if (user_name_buf)
+				if (copy_to_user((char*)user_name_buf, name_buf, 32))
+					return -EFAULT;
+		} else {
+			retval = -EINVAL;
+		}
+		break;
+	}
+	case FBIO_INIT_PANEL:
+	{
+		struct lcd_panel_info_t panel;
+		DISPLAYCFG* disp = &cur_display_settings;
+		if (copy_from_user(&panel, argp, sizeof(panel)))
+			return -EFAULT;
+		disp->pixclock = panel.pixclock;
+		disp->xres = panel.xres;
+		disp->yres = panel.yres;
+		disp->pclk_redg = panel.pclk_redg;
+		disp->hsyn_acth = panel.hsyn_acth;
+		disp->vsyn_acth = panel.vsyn_acth;
+		disp->oepol_actl = panel.oepol_actl;
+		disp->hsync_len = panel.hsync_len;
+		disp->left_margin = panel.left_margin;
+		disp->right_margin = panel.right_margin;
+		disp->vsync_len = panel.vsync_len;
+		disp->upper_margin = panel.upper_margin;
+		disp->lower_margin = panel.lower_margin;
+		disp->active = panel.active;		/* active matrix (TFT) LCD */
+		disp->crt = panel.crt;		/* 1 == CRT, not LCD */
+		disp->rotation = panel.rotation;
+		vpbe_enable_venc(0);
+		free_video_buffers();
+		davincifb_setup(disp, options);
+		if (allocate_video_buffers() < 0)
+			return -ENOMEM;
+		/* Enable the window */
+		set_win_enable(dm->osd0->info.fix.id, dm->osd0->window_enable);
+		dm->output_device_config();
+		vpbe_enable_venc(1);
+		break;
+	}
+	case FBIO_GET_CURRENT_PANEL_SETTINGS:
+	{
+		struct lcd_panel_info_t panel;
+		DISPLAYCFG* disp = &cur_display_settings;
+		panel.pixclock = disp->pixclock;
+		panel.xres = disp->xres;
+		panel.yres = disp->yres;
+		panel.pclk_redg = disp->pclk_redg;
+		panel.hsyn_acth = disp->hsyn_acth;
+		panel.vsyn_acth = disp->vsyn_acth;
+		panel.oepol_actl = disp->oepol_actl;
+		panel.hsync_len = disp->hsync_len;
+		panel.left_margin = disp->left_margin;
+		panel.right_margin = disp->right_margin;
+		panel.vsync_len = disp->vsync_len;
+		panel.upper_margin = disp->upper_margin;
+		panel.lower_margin = disp->lower_margin;
+		panel.active = disp->active;		/* active matrix (TFT) LCD */
+		panel.crt = disp->crt;			/* 1 == CRT, not LCD */
+		panel.rotation = disp->rotation;
+		if (copy_to_user(argp, &panel, sizeof(panel)))
+			return -EFAULT;
+		break;
+	}
+#endif
 	default:
 		retval = -EINVAL;
 		break;
@@ -1856,44 +1931,133 @@ struct fb_info *init_fb_info(struct vpbe_dm_win_info *w,
 	return info;
 }
 
-DISPLAYCFG cur_display_settings;
-const DISPLAYCFG* build_current_settings(void)
+static int gcm(u32 a, u32 b)
 {
-	unsigned int vmod = dispc_reg_in(VENC_VMOD);
+	u32 c;
+	if (a < b) {
+		c = a;
+		a = b;
+		b = c;
+	}
+	do {
+		if (b == 1)
+			break;
+		c = a % b;
+		if (c == 0)
+			break;
+		a = b;
+		b = c;
+	} while (1);
+	return b;
+}
+
+void read_settings(DISPLAYCFG* disp)
+{
 	unsigned int totalX = dispc_reg_in(VENC_DCLKHR);
-	unsigned int encPerPixel = dispc_reg_in(VENC_HINT) / (totalX-1);
+	unsigned enc_mult = 0;
+	unsigned enc_div;
 	unsigned int vid_ctl = dispc_reg_in(VENC_VIDCTL);
 	unsigned int sync_ctl = dispc_reg_in(VENC_SYNCCTL);
-	DISPLAYCFG* disp = &cur_display_settings;
+	unsigned int dclkctl;
+	unsigned int i = 0;
+	unsigned short val[4];
+//	struct clk	*clk;
 
+
+	dclkctl = dispc_reg_in(VENC_DCLKCTL);
+	val[0] = dispc_reg_in(VENC_DCLKPTN0);
+	val[1] = dispc_reg_in(VENC_DCLKPTN1);
+	val[2] = dispc_reg_in(VENC_DCLKPTN2);
+	val[3] = dispc_reg_in(VENC_DCLKPTN3);
+	enc_div = (dclkctl & 0x3f) + 1;
+	if (dclkctl & (1 << 11)) {
+		unsigned v = 0;
+		while (i < enc_div) {
+			if (!(i & 0xf))
+				v = val[i >> 4];
+			if (v & 1)
+				enc_mult++;
+			v >>= 1;
+			i++;
+		}
+	} else {
+		int prev = val[(enc_div - 1) >> 4] >> ((enc_div - 1) & 0x0f);
+		unsigned v = 0;
+		while (i < enc_div) {
+			if (!(i & 0xf))
+				v = val[i >> 4];
+			if (v & 1) {
+				if (!prev) {
+					enc_mult++;
+					prev = 1;
+				}
+			} else
+				prev = 0;
+			v >>= 1;
+			i++;
+		}
+	}
+	i = gcm(enc_div, enc_mult);
+	if (i > 1) {
+		enc_div /= i;
+		enc_mult /= i;
+	}
+	printk(KERN_ERR "%s: enc_mult=%d, enc_div=%d\n", __func__, enc_mult, enc_div);
+
+#define TO_ENC(pixels, enc_mult, enc_div) (((pixels) * (enc_div)) / (enc_mult))
+#define FROM_ENC(enc, enc_mult, enc_div) (((enc) * (enc_mult)) / (enc_div))
+
+	disp->enc_mult = enc_mult;
+	disp->enc_div = enc_div;
+	disp->xres = FROM_ENC(dispc_reg_in(VENC_HVALID), enc_mult, enc_div);
+	disp->hsync_len = FROM_ENC(dispc_reg_in(VENC_HSPLS), enc_mult, enc_div);
+	disp->left_margin = FROM_ENC(dispc_reg_in(VENC_HSTART), enc_mult, enc_div) - disp->hsync_len;
+	disp->right_margin = totalX - (disp->xres + disp->hsync_len + disp->left_margin);
+
+	disp->yres = dispc_reg_in(VENC_VVALID);
+	disp->vsync_len = dispc_reg_in(VENC_VSPLS);
+	disp->upper_margin = dispc_reg_in(VENC_VSTART) - disp->vsync_len;
+	disp->lower_margin = dispc_reg_in(VENC_VINT)+ 1 - (disp->yres + disp->vsync_len + disp->upper_margin);
+
+	disp->vsyn_acth = ((sync_ctl>>3)&1)^1;
+	disp->hsyn_acth = ((sync_ctl>>2)&1)^1;
+	disp->pclk_redg = ((vid_ctl>>14)&1)^1;
+	disp->oepol_actl = (dispc_reg_in(VENC_LCDOUT)>>1)&1;
+
+	disp->enable = 1;
+	disp->active = 1;		/* active matrix (TFT) LCD */
+	disp->crt = 1;			/* can't really tell */
+/*
+	clk = clk_get(NULL, "pll2_sysclk1");
+	if (clk) {
+		unsigned long rate = clk_get_rate(clk);
+		disp->pixclock = FROM_ENC(rate, enc_mult, enc_div);
+		clk_put(clk);
+	} else
+		disp->vSyncHz = 62;
+*/
+	disp->pixclock = FROM_ENC(12461538 * 2, enc_mult, enc_div);
+}
+
+const DISPLAYCFG* build_current_settings(void)
+{
+	DISPLAYCFG* disp = &cur_display_settings;
+	unsigned int vmod = dispc_reg_in(VENC_VMOD);
+	unsigned totalh, totalv, total_pix;
 	if ((vmod & (VENC_VMOD_VMD|VENC_VMOD_VENC)) !=
 		(VENC_VMOD_VMD|VENC_VMOD_VENC)) {
 		*disp = stdDisplayTypes[DEF_INDEX];
-		encPerPixel = 1;
-		if ((disp->xRes * disp->yRes) <= (640*480)) encPerPixel = 2;
-		if ((disp->xRes * disp->yRes) <= (640*240)) encPerPixel = 4;
-		if ((disp->xRes * disp->yRes) <= (320*240)) encPerPixel = 8;
-		disp->encPerPixel = encPerPixel;
-		return disp;
-	}
-
-	disp->encPerPixel = encPerPixel;
-	disp->xRes = dispc_reg_in(VENC_HVALID) / encPerPixel;
-	disp->xSyncWidth = dispc_reg_in(VENC_HSPLS) / encPerPixel;
-	disp->xBegin = dispc_reg_in(VENC_HSTART) / encPerPixel;
-	disp->xEnd = totalX - (disp->xRes + disp->xSyncWidth + disp->xBegin);
-
-	disp->yRes = dispc_reg_in(VENC_VVALID);
-	disp->ySyncWidth = dispc_reg_in(VENC_VSPLS);
-	disp->yBegin = dispc_reg_in(VENC_VSTART);
-	disp->yEnd = dispc_reg_in(VENC_VINT)+ 1 - (disp->yRes + disp->ySyncWidth + disp->yBegin);
-
-	disp->vsPol = (sync_ctl>>3)&1;
-	disp->hsPol = (sync_ctl>>2)&1;
-	disp->pPol = ((vid_ctl>>14)&1)^1;
-	disp->oePol = (dispc_reg_in(VENC_LCDOUT)>>1)&1;
-
-	disp->enable = 1;
+	} else
+		read_settings(disp);
+	totalh = disp->xres + disp->hsync_len +
+			disp->left_margin + disp->right_margin;
+	totalv = disp->yres + disp->vsync_len +
+			disp->upper_margin + disp->lower_margin;
+	total_pix = totalh * totalv;
+	if (disp->pixclock)
+		disp->vSyncHz = (unsigned char)(disp->pixclock / total_pix);
+	else
+		disp->pixclock = total_pix * disp->vSyncHz;
 	return disp;
 }
 
@@ -1901,39 +2065,369 @@ static void update_var
    ( struct fb_var_screeninfo *var,
      const DISPLAYCFG         *disp )
 {
-   var->xres_virtual = var->xres = disp->xRes ;
-   var->yres_virtual = var->yres = disp->yRes ;
-   var->xres = disp->xRes ;
-   var->xres = disp->xRes ;
-   var->xres = disp->xRes ;
+   var->xres_virtual = var->xres = disp->xres ;
+   var->yres_virtual = var->yres = disp->yres ;
+   var->xres = disp->xres ;
+   var->xres = disp->xres ;
+   var->xres = disp->xres ;
+}
+
+#ifdef CONFIG_THS8200
+void ths8200_setup(const DISPLAYCFG* disp);
+#else
+void ths8200_setup(const DISPLAYCFG* info)
+{
+}
+#endif
+
+
+/*****************************************************/
+# define do_divq(n,base) ({				\
+	uint64_t tn = (n);				\
+	uint32_t tbase = (base);			\
+	uint32_t trem;					\
+	(void)(((typeof((n)) *)0) == ((uint64_t *)0));	\
+	if (((n) >> 32) == 0) {				\
+		tn = (uint32_t)(tn) / tbase;		\
+	} else						\
+		trem = do_div((tn), tbase);		\
+	tn;						\
+ })
+
+#define OSC_RATE 27000000
+
+#if 1
+#define DDR2_MIN	(140000000 * 2)	/* after div2 */
+#define	DDR2_MAX	(200000000 * 2)
+#else
+#define DDR2_MIN	(161000000 * 2)	/* after div2 */
+#define	DDR2_MAX	(163000000 * 2)
+#endif
+
+//#define MAX_VPBE	75018754
+//75 Mhz Max clock input to back end (13.33ns/clock)
+#define MAX_VPBE	112000000	//112 Mhz Max clock input to back end
+
+static int check_ddr2(unsigned mrate)
+{
+	unsigned rate;
+	unsigned div = ((mrate - 1) / DDR2_MAX) + 1;
+	if (div > 16)
+		return 0;
+	rate = mrate /div;
+//	printk(KERN_ERR "%s: rate:%u div:%u\n", __func__, rate, div);
+	return (rate < DDR2_MIN) ? 0 : div;
+}
+
+struct clk_factors {
+	u32 mult;
+	u32 div;
+	u32 enc_mult;
+	u32 enc_div;
+	u32 error;
+};
+
+int new_best(struct clk_factors *best, struct clk_factors *test)
+{
+	if (best->error > test->error) {
+		if (best->enc_div != 1)
+			return 1;
+		if (test->enc_div == 1)
+			return 1;
+		if (((best->error * 3)/4) > test->error)
+			return 1;
+		/*
+		 * Best error is larger, but not more than 33% larger
+		 * and Best has advantage of a normal pixel clock
+		 */
+		return 0;
+	}
+	if (best->error < test->error) {
+		if (test->enc_div != 1)
+			return 0;
+		if (best->enc_div == 1)
+			return 0;
+		if (((test->error * 3)/4) > best->error)
+			return 0;
+		/*
+		 * Test error is larger, but not more than 33% larger
+		 * and Test has advantage of a normal pixel clock
+		 */
+		return 1;
+	}
+	if (best->enc_div != test->enc_div) {
+		if (best->enc_div == 1)
+			return 0;
+		if (test->enc_div == 1)
+			return 1;
+		/* This is not needed */
+		if (0) if ((test->enc_div > best->div) &&
+				(gcm(test->enc_div,test->enc_mult) == 1)) {
+			return 1;
+		}
+	}
+	return 0;
+}
+//VENC_DCLKCTL encodes 1-64 clks, but VENC_OSDCLK0 encodes only 1-16 clks,
+#define MAX_ENC_DIV 16
+
+#define MAX_ENC_MULT 1	//was MAX_ENC_DIV - 1, but doesn't look good on CRTS
+static unsigned query_clk_settings(u32 mhz, struct clk_factors *pbest,
+	unsigned char encperpix_m, unsigned char encperpix_d)
+{
+	struct clk_factors best;
+	struct clk_factors cur;
+	u32 mrate;
+	u32 enc_mult_start = 1;
+	u32 enc_mult_end = MAX_ENC_MULT;
+	u32 enc_div_start = 1;
+	u32 enc_div_end = MAX_ENC_DIV;
+	best.error = ~0;
+	best.mult = 0;
+	best.div = 0;
+	best.enc_mult = 0;
+	best.enc_div = 0;
+
+	if (!encperpix_m)
+		encperpix_m = 1;
+	if (encperpix_d) {
+		if (encperpix_d > 64) {
+			printk(KERN_ERR "Invalid encperpix(%u:%u)\n",
+					encperpix_m, encperpix_d);
+		} else {
+			printk(KERN_ERR "forcing encperpix=%u:%u\n",
+					encperpix_m, encperpix_d);
+			enc_mult_start = encperpix_m;
+			enc_mult_end = encperpix_m;
+			enc_div_start = encperpix_d;
+			enc_div_end = encperpix_d;
+		}
+	}
+
+	cur.mult = (DDR2_MIN + OSC_RATE -1) / OSC_RATE;
+	mrate = cur.mult * OSC_RATE;
+	for (; cur.mult <= 32; cur.mult++, mrate += OSC_RATE) {
+		if (!check_ddr2(mrate))
+			continue;
+		cur.div = (mrate + MAX_VPBE - 1)/MAX_VPBE;
+		for (; cur.div <= 16; cur.div++) {
+			u32 vpbe = mrate / cur.div;
+			cur.enc_mult = enc_mult_start;
+//			printk(KERN_ERR "vpbe=%u, mhz=%u\n", vpbe, mhz);
+			for (; cur.enc_mult <= enc_mult_end; cur.enc_mult++) {
+				u32 rate;
+				u64 vm = vpbe;
+				vm *= cur.enc_mult;
+				cur.enc_div = do_divq(vm, mhz);
+				if (cur.enc_div > enc_div_end)
+					cur.enc_div = enc_div_end;
+				if (cur.enc_div < enc_div_start)
+					cur.enc_div = enc_div_start;
+				if (cur.enc_div <= cur.enc_mult) {
+					cur.enc_div = cur.enc_mult;
+					if (cur.enc_mult != enc_mult_start) {
+						cur.enc_div++;
+						if (cur.enc_div > enc_div_end)
+							break;
+					}
+				}
+				do {
+					rate = do_divq(vm, cur.enc_div);
+					cur.error = (rate > mhz) ?
+						(rate - mhz) : (mhz - rate);
+if (0) printk(KERN_ERR "mult:%u div:%u enc:%u:%u error:%u\n",
+	cur.mult, cur.div, cur.enc_mult, cur.enc_div, cur.error);
+					if (new_best(&best, &cur)) {
+if (0) printk(KERN_ERR "%s: mult:%u div:%u enc:%u:%u error:%u\n", __func__,
+	cur.mult, cur.div, cur.enc_mult, cur.enc_div, cur.error);
+						best = cur;
+					}
+					cur.enc_div++;
+				} while ((rate > mhz) &&
+						(cur.enc_div <= enc_div_end));
+				if (vpbe <= mhz)
+					break;
+			}
+			if (vpbe <= mhz)
+				break;
+		}
+	}
+	*pbest = best;
+	mrate = 0;
+	if (best.mult) {
+		u64 m = OSC_RATE;
+		m *= (best.mult * best.enc_mult);
+		mrate = do_divq(m, (best.div * best.enc_div));
+	}
+	return mrate;
+}
+
+u32 query_pixel_Clock(u32 mhz,
+	unsigned char encperpix_m, unsigned char encperpix_d)
+{
+	struct clk_factors clk;
+	return query_clk_settings(mhz, &clk, encperpix_m, encperpix_d);
+}
+
+void clk_reinit_pll2(int pll_mult, int pll_div1, int pll_div2);
+
+static int setPixClock(u32 mhz, u32 *penc_mult, u32 *penc_div)
+{
+	struct clk_factors clk_f;
+	u32 pixel_clk = query_clk_settings(mhz, &clk_f, 0, 0);
+	if (pixel_clk) {
+		u32 mrate = OSC_RATE * clk_f.mult;
+		u32 ddr2_div = check_ddr2(mrate);
+		u32 ddr2_clk =  (mrate / ddr2_div) >> 1;
+		printk(KERN_ERR "Pixel clock %u, mult = %u, div = %u, enc = %u:%u, DDR2 clock = %u, div = %u\n",
+				pixel_clk, clk_f.mult, clk_f.div, clk_f.enc_mult, clk_f.enc_div, ddr2_clk, ddr2_div);
+
+//		clk_reinit_pll2(clk_f.mult, clk_f.div, ddr2_div);
+		*penc_mult = clk_f.enc_mult;
+		*penc_div = clk_f.enc_div;
+	} else {
+		printk(KERN_ERR "%s: no clock found\n", __func__);
+	}
+	return pixel_clk;
+}
+/*****************************************************/
+/*
+ * Example mul = 5, div = 14, 2.8 width cell, actual waveform
+ * |  0  |  1  |  2  |  3  |  4  |  5  |  6  |  7  |  8  |  9  | 10  | 11  | 12  | 13  |
+ * |     |     |11111|11111|22222|22222|33333|33333|44444|44444|55555|55555|66666|66666|
+ * |01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|01234|56789|
+ * |    _|__1__|_    |    _|_1___|     |  ___|1___ |     | ___1|___  |     |___1_|__   |
+ * |  0  |  1  |  0  |  0  |  1  |  0  |  1  |  1  |  0  |  1  |  1  |  0  |  1  |  0  |
+ *
+ * Example mul = 2, div = 7
+ * |0 |1 |2 |3 |4 |5 |6 |
+ * |  |  |  |  |  |11|11|
+ * |01|23|45|67|89|01|23|
+ * |  |_1|_ |  | _|1_|  |
+ * |0 |1 |0 |0 |0 |1 |0 |
+ *
+ * Example mul = 2, div = 6
+ * |0 |1 |2 |3 |4 |5 |
+ * |  |  |  |  |  |11|
+ * |01|23|45|67|89|01|
+ * |  |1 |  |  |1 |  |
+ * |0 |1 |0 |0 |1 |0 |
+ *
+ * Example mul = 1, div = 3
+ * |0 |1 |2 |
+ * |  |  |  |
+ * |0 |1 |2 |
+ * |  |1 |  |
+ * |0 |1 |0 |
+ */
+#if 0
+#define BIT_FIRST	0
+#define BIT_NEXT(bit)	(bit + 1)
+#define BIT_DONE(bit)	(bit > last)
+#else
+#define BIT_FIRST	last
+#define BIT_NEXT(bit)	(bit - 1)
+#define BIT_DONE(bit)	(bit < 0)
+#endif
+
+static void get_pattern_levels(unsigned enc_mult, unsigned enc_div, int last, unsigned short *val)
+{
+	u32 setbits = enc_div >> 1;
+	u32 min = (enc_mult >> 1) + 1;
+	int bit = BIT_FIRST;
+	u32 gbit = setbits - (setbits >> 1);	//Start in middle of 1st bit
+	while (1) {
+		u32 bits_set_in_cell;
+		while (gbit >= enc_mult) {
+			gbit -= enc_mult;
+			bit = BIT_NEXT(bit);
+		}
+		if (BIT_DONE(bit))
+			break;
+		bits_set_in_cell = (enc_mult - gbit);
+		if (bits_set_in_cell >= min)
+			val[bit>>4] |= (1<<(bit&0xf));
+		{
+			int tbit = BIT_NEXT(bit);
+			u32 width = setbits - bits_set_in_cell;
+			while (width >= enc_mult) {
+				if (BIT_DONE(tbit))
+					break;
+				val[tbit>>4] |= (1<<(tbit&0xf));
+				width -= enc_mult;
+				tbit = BIT_NEXT(tbit);
+			}
+			if (BIT_DONE(tbit))
+				break;
+			if (width >= min)
+				val[tbit>>4] |= (1<<(tbit&0xf));
+		}
+		gbit += enc_div;
+	}
+}
+
+/*
+ *
+ *
+ * Example mul = 7, div = 8, 1 means pixel clock here
+ * |   0   |   1   |   2   |   3   |   4   |   5   |   6   |   7   |
+ * |       |   1111|1111112|2222222|2233333|3333344|4444444|4555555|
+ * |0123456|7890123|4567890|1234567|8901234|5678901|2345678|9012345|
+ * |    1  |     1 |      1|       |1      | 1     |  1    |   1   |
+ * |   1   |   1   |   1   |   0   |   1   |   1   |   1   |   1   |
+ *
+ */
+static void get_pattern_active(unsigned enc_mult, unsigned enc_div, int last, unsigned short *val)
+{
+	u32 bit = 0;
+	u32 gbit = enc_div >> 1;	//Start in middle of 1st bit
+	while (1) {
+		while (gbit >= enc_mult) {
+			gbit -= enc_mult;
+			bit++;
+		}
+		if (bit >= 64)
+			break;
+		val[bit>>4] |= (1<<(bit&0xf));
+		gbit += enc_div;
+	}
 }
 
 void vpbe_davincifb_lcd_component_config(void)
 {
 	const DISPLAYCFG* disp = &cur_display_settings;
 	if (1) {
-		int encPerPixel = disp->encPerPixel;
+		unsigned hstart, vstart;
+		int dclkctl;
+		int enc_mult = disp->enc_mult;
+		int enc_div = disp->enc_div;
+		int md;
 		unsigned short val[4];
-		int bit;
-		int gbit;
-		dispc_reg_out(OSD_BASEPX, disp->xBegin);
-		dispc_reg_out(OSD_BASEPY, disp->yBegin);
+		int totalh, totalv;
+		hstart = disp->hsync_len + disp->left_margin;
+		vstart = disp->vsync_len + disp->upper_margin;
 
 		/* Reset video encoder module */
 		dispc_reg_out(VENC_VMOD, 0);
+		setPixClock(disp->pixclock, &enc_mult, &enc_div);
+
+		dispc_reg_out(OSD_BASEPX, hstart);
+		dispc_reg_out(OSD_BASEPY, vstart);
 		dispc_reg_out(VPSS_CLKCTL, 0x09);	//disable DAC clock
 		dispc_reg_out(VPBE_PCR, 0);		//not divided by 2
 //		dispc_reg_out(VPBE_PCR, 2);		//divided by 2
-		dispc_reg_out(VENC_VIDCTL,((disp->pPol^1)<<14)|(1<<13));
-		dispc_reg_out(VENC_SYNCCTL,(disp->vsPol<<3)|(disp->hsPol<<2)|0x03);
-		dispc_reg_out(VENC_HSPLS,disp->xSyncWidth*encPerPixel);
-		dispc_reg_out(VENC_VSPLS,disp->ySyncWidth);
-		dispc_reg_out(VENC_HINT,(disp->xRes+disp->xSyncWidth+disp->xBegin+disp->xEnd-1)*encPerPixel);
-		dispc_reg_out(VENC_HSTART,disp->xBegin*encPerPixel);
-		dispc_reg_out(VENC_HVALID,disp->xRes*encPerPixel);
-		dispc_reg_out(VENC_VINT,(disp->yRes+disp->ySyncWidth+disp->yBegin+disp->yEnd-1));
-		dispc_reg_out(VENC_VSTART,disp->yBegin);
-		dispc_reg_out(VENC_VVALID,disp->yRes);
+		dispc_reg_out(VENC_VIDCTL,((disp->pclk_redg^1)<<14)|(1<<13));
+		dispc_reg_out(VENC_SYNCCTL,((disp->vsyn_acth<<3)|(disp->hsyn_acth<<2)) ^ 0x0f);
+		dispc_reg_out(VENC_HSPLS, TO_ENC(disp->hsync_len, enc_mult, enc_div));
+		dispc_reg_out(VENC_VSPLS,disp->vsync_len);
+		totalh = disp->xres+disp->hsync_len+disp->left_margin+disp->right_margin;
+		dispc_reg_out(VENC_HINT, TO_ENC(totalh, enc_mult, enc_div) - 1);
+		dispc_reg_out(VENC_HSTART, TO_ENC(hstart, enc_mult, enc_div));
+		dispc_reg_out(VENC_HVALID, TO_ENC(disp->xres, enc_mult, enc_div));
+		totalv = disp->yres+disp->vsync_len+disp->upper_margin+disp->lower_margin;
+		dispc_reg_out(VENC_VINT,(totalv-1));
+		dispc_reg_out(VENC_VSTART,disp->upper_margin + disp->vsync_len);
+		dispc_reg_out(VENC_VVALID,disp->yres);
 		dispc_reg_out(VENC_HSDLY,0);
 		dispc_reg_out(VENC_VSDLY,0);
 		dispc_reg_out(VENC_RGBCTL,0);
@@ -1941,45 +2435,55 @@ void vpbe_davincifb_lcd_component_config(void)
 		davinci_mux_peripheral(DAVINCI_MUX_RGB666,0);
 		davinci_mux_peripheral(DAVINCI_MUX_RGB888,1);
 		davinci_mux_peripheral(DAVINCI_MUX_LOEEN,1);
-		dispc_reg_out(VENC_LCDOUT,(disp->oePol<<1)|1);	//enable active high on gpio0
-		
+		dispc_reg_out(VENC_LCDOUT,(disp->oepol_actl<<1)|1);	//enable active high on gpio0
+
 		val[0] = 0;
 		val[1] = 0;
 		val[2] = 0;
 		val[3] = 0;
-		gbit = (encPerPixel>>1);
-		bit = (encPerPixel>>1);
-		while (bit < 64) {
-			val[bit>>4] |= (1<<(bit&0xf));
-			bit++;
-			gbit++;
-			if (gbit>=encPerPixel) {
-				gbit = (encPerPixel>>1);
-				bit += gbit;
+		dclkctl = md = enc_mult * enc_div;
+		while (dclkctl > 64)
+			dclkctl -= enc_mult;
+		while (dclkctl + md <= 64)
+			dclkctl += md;
+		dclkctl--;
+		if ((enc_mult * 2) <= enc_div) {
+			get_pattern_levels(enc_mult, enc_div, dclkctl, val);
+		} else {
+			get_pattern_active(enc_mult, enc_div, dclkctl, val);
+			dclkctl |= (1 << 11);
+		}
+		dispc_reg_out(VENC_DCLKCTL, dclkctl);
+		dispc_reg_out(VENC_DCLKPTN0, val[0]);
+		dispc_reg_out(VENC_DCLKPTN1, val[1]);
+		dispc_reg_out(VENC_DCLKPTN2, val[2]);
+		dispc_reg_out(VENC_DCLKPTN3, val[3]);
+
+		dispc_reg_out(VENC_DCLKHS, 0);
+		dispc_reg_out(VENC_DCLKHSA, 0);
+		dispc_reg_out(VENC_DCLKHR, totalh);
+		dispc_reg_out(VENC_DCLKVS, 0);
+		dispc_reg_out(VENC_DCLKVR, totalv);
+
+		if ((dclkctl & (1 << 11)) == 0) {
+			u32 bit = 0;
+			u32 gbit = 0;
+			val[0] = 0;
+			while (1) {
+				while (gbit >= enc_mult) {
+					gbit -= enc_mult;
+					bit++;
+				}
+				if (bit >= 16)
+					break;
+				val[0] |= (1 << bit);
+				gbit += enc_div;
 			}
 		}
-		bit -= gbit;
-		dispc_reg_out(VENC_DCLKCTL,((encPerPixel==1)?(1<<11):0) | (bit-1));
-		dispc_reg_out(VENC_DCLKPTN0,val[0]);
-		dispc_reg_out(VENC_DCLKPTN1,val[1]);
-		dispc_reg_out(VENC_DCLKPTN2,val[2]);
-		dispc_reg_out(VENC_DCLKPTN3,val[3]);
-		dispc_reg_out(VENC_DCLKHS,0);
-		dispc_reg_out(VENC_DCLKHSA,0);
-		dispc_reg_out(VENC_DCLKHR,disp->xRes+disp->xSyncWidth+disp->xBegin+disp->xEnd);
-		dispc_reg_out(VENC_DCLKVS,0);
-		dispc_reg_out(VENC_DCLKVR,disp->yRes+disp->ySyncWidth+disp->yBegin+disp->yEnd);
-
-		val[0] = 0;
-		bit = 0;
-		while (bit < 16) {
-			val[0] |= (1<<bit);
-			bit+=encPerPixel;
-		}
-		if (bit>16) bit -= encPerPixel;
-		dispc_reg_out(VENC_OSDCLK0,bit-1);
-		dispc_reg_out(VENC_OSDCLK1,val[0]);
-		dispc_reg_out(VENC_OSDHAD,0);
+		dispc_reg_out(VENC_OSDCLK0, (enc_div <= 16) ? ((16 / enc_div) * enc_div) - 1 : 15);
+		dispc_reg_out(VENC_OSDCLK1, val[0]);
+		dispc_reg_out(VENC_OSDHAD, 0);
+		ths8200_setup(disp);
 		dispc_reg_out(VENC_VMOD, (VENC_VMOD_VDMD_RGB666<<VENC_VMOD_VDMD_SHIFT)|
 				VENC_VMOD_VMD|
 				VENC_VMOD_VENC);
@@ -2222,20 +2726,18 @@ static int CheckWinParms(char* this_opt,char* pName,vpbe_dm_win_info_t *w,int* p
  *	:osd0=off:osd1=off	
  */
 
-int davincifb_setup(char *options)
+int davincifb_setup(const DISPLAYCFG* disp, char *options)
 {
 	char *this_opt;
 	struct fb_info *info;
         int i ;
 	int format_yres = 480;
 	int flag = 0, flag_osd0 = 0, flag_osd1 = 0, flag_vid0 = 0, flag_vid1 = 0;
-	const DISPLAYCFG* disp = build_current_settings();
-	
 	for( i = 0 ; i < 4 ; i++ ){
            update_var( default_vars[i], disp );
         }
-        dm->videomode.xres = disp->xRes ;
-        dm->videomode.yres = disp->yRes ;
+        dm->videomode.xres = disp->xres ;
+        dm->videomode.yres = disp->yres ;
         dm->videomode.fps  = disp->vSyncHz ;
 //	dm->videomode.left_margin;
 //	dm->videomode.right_margin;
@@ -2300,15 +2802,15 @@ int davincifb_setup(char *options)
 				dm->display.mode = LCD;
 				dm->display.interface = RGB;
 				dm->videomode.vmode = FB_VMODE_NONINTERLACED;
-				dm->osd0->info.var.xres = disp->xRes;
-				dm->osd1->info.var.xres = disp->xRes;
-				dm->vid0->info.var.xres = disp->xRes;
-				dm->vid1->info.var.xres = disp->xRes;
+				dm->osd0->info.var.xres = disp->xres;
+				dm->osd1->info.var.xres = disp->xres;
+				dm->vid0->info.var.xres = disp->xres;
+				dm->vid1->info.var.xres = disp->xres;
 
-				dm->osd0->info.var.yres = disp->yRes;
-				dm->osd1->info.var.yres = disp->yRes;
-				dm->vid0->info.var.yres = disp->yRes;
-				dm->vid1->info.var.yres = disp->yRes;
+				dm->osd0->info.var.yres = disp->yres;
+				dm->osd1->info.var.yres = disp->yres;
+				dm->vid0->info.var.yres = disp->yres;
+				dm->vid1->info.var.yres = disp->yres;
 			} else {
 				if (!strncmp(this_opt + 7, "ntsc", 4))
 					dm->display.mode = NTSC;
@@ -2587,7 +3089,7 @@ int vpbe_mem_alloc_max(struct vpbe_dm_win_info *w)
 				frame buffers of the window. */
 int vpbe_mem_release_window_buf(struct vpbe_dm_win_info *w)
 {
-	if (w->fb_base) {
+	if (w) if (w->fb_base) {
 		if (!w->alloc_fb_mem) {
 			unsigned int size = (w->fb_size+0xffff)& ~0xffff;
 			iounmap((void *)w->fb_base);
@@ -2642,18 +3144,22 @@ int davincifb_remove(struct device *dev)
 	if (dm->osd0) {
 		unregister_framebuffer(&dm->osd0->info);
 		mem_release(dm->osd0);
+		dm->osd0 = NULL;
 	}
 	if (dm->osd1) {
 		unregister_framebuffer(&dm->osd1->info);
 		mem_release(dm->osd1);
+		dm->osd1 = NULL;
 	}
 	if (dm->vid0) {
 		unregister_framebuffer(&dm->vid0->info);
 		mem_release(dm->vid0);
+		dm->vid0 = NULL;
 	}
 	if (dm->vid1) {
 		unregister_framebuffer(&dm->vid1->info);
 		mem_release(dm->vid1);
+		dm->vid1 = NULL;
 	}
 
         if( 0 <= dmach ){
@@ -2685,6 +3191,7 @@ int vpbe_davincifb_probe(struct device *dev)
 {
 	struct platform_device *pdev;
         int rval ;
+        const DISPLAYCFG* disp;
 
 //	dma_addr_t vbase = VIDEO_FB_BASE;
 
@@ -2695,7 +3202,7 @@ int vpbe_davincifb_probe(struct device *dev)
 	}
 
 	dm->dev = dev;
-	dm->mmio_base_phys = OSD_REG_BASE;
+	dm->mmio_base_phys = (u32)OSD_REG_BASE;
 	dm->mmio_size = OSD_REG_SIZE;
 
 	/* request the mem regions */
@@ -2714,7 +3221,8 @@ int vpbe_davincifb_probe(struct device *dev)
 	}
 
 	/* Do default settings for all the windows      */
-	davincifb_setup(options);
+	disp = build_current_settings();
+	davincifb_setup(disp, options);
 
 	/* Set fb_videomode structure */
         if( LCD != dm->display.mode )
