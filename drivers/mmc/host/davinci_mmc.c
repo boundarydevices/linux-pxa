@@ -679,6 +679,12 @@ mmc_davinci_prepare_data(struct mmc_davinci_host *host, struct mmc_request *req)
 	/* Configure the FIFO */
 	switch (host->data_dir) {
 	case DAVINCI_MMC_DATADIR_WRITE:
+		printk(KERN_ERR "Writing to SD card.\n");
+
+		gpio_direction_output(1,1);	//turn on sd led
+		mdelay(3);
+		gpio_direction_output(1,0);	//turn off sd led
+
 		writel(fifo_lev | MMCFIFOCTL_FIFODIR_WR | MMCFIFOCTL_FIFORST,
 			host->base + DAVINCI_MMCFIFOCTL);
 		writel(fifo_lev | MMCFIFOCTL_FIFODIR_WR,
@@ -686,6 +692,11 @@ mmc_davinci_prepare_data(struct mmc_davinci_host *host, struct mmc_request *req)
 		break;
 
 	case DAVINCI_MMC_DATADIR_READ:
+
+		gpio_direction_output(1,1);	//turn on sd led
+		mdelay(3);
+		gpio_direction_output(1,0);	//turn off sd led
+
 		writel(fifo_lev | MMCFIFOCTL_FIFODIR_RD | MMCFIFOCTL_FIFORST,
 			host->base + DAVINCI_MMCFIFOCTL);
 		writel(fifo_lev | MMCFIFOCTL_FIFODIR_RD,
