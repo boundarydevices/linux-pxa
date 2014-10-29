@@ -1,4 +1,3 @@
-#include <asm/BigMacro.h>
 
 /* PLL2-SYSTEM PLL MMRs */
 	.equiv	_PLL_CTL,		0x0100
@@ -47,7 +46,7 @@
 	.equiv	DAVINCI_LPSC_DDR2,	13
 
 	.macro	DelayLoop rCnt,val
-	BigMov	\rCnt,\val
+	mov	\rCnt, #\val
 99:	subs	\rCnt,\rCnt,#1
 	bne		99b
 	.endm
@@ -193,18 +192,25 @@ pll2_change_routine:
 	 *------------------------------------------------------*/
 
 	/* Program PHY Control Register */
-	BigMov	r0,C_DDRCTL_VAL
+	mov	r0, #C_DDRCTL_VAL & 0xff
+	orr	r0, r0, #C_DDRCTL_VAL & 0xff00
+	orr	r0, r0, #C_DDRCTL_VAL & 0xffff0000
 	str	r0, [r5,#MM_DDRPHYCR]
 
 	orr	r1, ip, $(1<<15)
 	str	r1, [r5,#MM_SDBCR]
 
 	/* Program SDRAM TIM-0 Config Register */
-	BigMov	r0, SDTIM0_VAL_162MHz
+	mov	r0, #SDTIM0_VAL_162MHz & 0xff
+	orr	r0, r0, #SDTIM0_VAL_162MHz & 0xff00
+	orr	r0, r0, #SDTIM0_VAL_162MHz & 0xff0000
+	orr	r0, r0, #SDTIM0_VAL_162MHz & 0xff000000
 	str	r0, [r5,#MM_SDTIMR]
 
 	/* Program SDRAM TIM-1 Config Register */
-	BigMov	r0, SDTIM1_VAL_162MHz
+	mov	r0, #SDTIM1_VAL_162MHz & 0xff
+	orr	r0, r0, #SDTIM1_VAL_162MHz & 0xff00
+	orr	r0, r0, #SDTIM1_VAL_162MHz & 0xffff0000
 	str	r0, [r5,#MM_SDTIMR2]
 
 	/* Program the SDRAM Bank Config Control Register */
@@ -212,7 +218,8 @@ pll2_change_routine:
 	str	r0, [r5,#MM_SDBCR]
 
 	/* Program SDRAM SDREF Config Register */
-	BigMov	r0,C_SDREF_VAL
+	mov	r0, #C_SDREF_VAL & 0xff
+	orr	r0, r0, #C_SDREF_VAL & 0xffffff00
 	str	r0, [r5,#MM_SDRCR]
 
 	/*------------------------------------------------------*
@@ -220,7 +227,10 @@ pll2_change_routine:
 	 *------------------------------------------------------*/
 
 	/* Issue a Dummy DDR2 read/write */
-	BigMov	r0, DUMMY_VAL
+	mov	r0, #DUMMY_VAL & 0xff
+	orr	r0, r0, #DUMMY_VAL & 0xff00
+	orr	r0, r0, #DUMMY_VAL & 0xff0000
+	orr	r0, r0, #DUMMY_VAL & 0xff000000
 	str	r0, [r8]
 	ldr	r0, [r8]
 
@@ -299,7 +309,7 @@ copy_reset_pll2_routine:
  */
 reset_pll2:
 	stmdb	sp!,{r4,r5,r6,r7,r8,r9,ip,lr}
-	
+
 	ldr	r5, [sp,#8*4]	@MM_BASE
 	ldr	r6, [sp,#9*4]	@PLL_BASE
 	ldr	r9, [r6,#_PLL_CTL]	@ make sure page translation is cached
