@@ -47,17 +47,17 @@
 
 static int xenon_startup(struct snd_pcm_substream *substream)
 {
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		gpio_direction_output(MUTE_GPIO,NOTMUTED);
-	}
+//	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+//		gpio_direction_output(MUTE_GPIO,NOTMUTED);
+//	}
 	return 0;
 }
 
 static void xenon_shutdown(struct snd_pcm_substream *substream)
 {
-	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
-		gpio_direction_output(MUTE_GPIO,MUTED);
-	}
+//	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
+//		gpio_direction_output(MUTE_GPIO,MUTED);
+//	}
 }
 
 static int xenon_hw_params(struct snd_pcm_substream *substream,
@@ -185,7 +185,7 @@ static int __init xenon_init(void)
 	xenon_snd_device = platform_device_alloc("soc-audio", 0);
 	if (!xenon_snd_device)
 		return -ENOMEM;
-	gpio_request(MUTE_GPIO, "mute speaker");
+//	gpio_request(MUTE_GPIO, "mute speaker");
 	platform_set_drvdata(xenon_snd_device, &xenon_snd_devdata);
 	xenon_snd_devdata.dev = &xenon_snd_device->dev;
 	ret = platform_device_add(xenon_snd_device);
