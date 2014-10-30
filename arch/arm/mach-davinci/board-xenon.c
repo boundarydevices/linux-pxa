@@ -240,6 +240,8 @@ static __init void board_init(void)
 	printk(KERN_ERR "board_init\n");
 	gpio_request(50, "USB Power");
 	gpio_direction_output(50, 1);	/* turn off USB power */
+	gpio_request(1, "SD card LED");
+	gpio_direction_output(1, 0);	// turn off SD card LED	
 	davinci_init_i2c(NULL);
 	i2c_register_board_info(1, i2c_info, ARRAY_SIZE(i2c_info));
 #if defined(CONFIG_BLK_DEV_DAVINCI) || defined(CONFIG_BLK_DEV_DAVINCI_MODULE)
