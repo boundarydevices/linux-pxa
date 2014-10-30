@@ -254,7 +254,7 @@ static __init void board_init(void)
 	davinci_setup_usb(500, 8);
 	davinci_setup_mmc(0, &mmc_config);
 
-	soc_info->emac_pdata->phy_mask = 2;
+	soc_info->emac_pdata->phy_mask = 1;
 	soc_info->emac_pdata->mdio_max_freq = 2200000;
 }
 
