@@ -231,6 +231,8 @@ static struct davinci_uart_config uart_config __initdata = {
 static __init void board_init(void)
 {
 	struct clk *aemif_clk;
+	struct davinci_soc_info *soc_info = &davinci_soc_info;
+
 	aemif_clk = clk_get(NULL, "aemif");
 	clk_enable(aemif_clk);
 	clk_put(aemif_clk);
@@ -251,6 +253,9 @@ static __init void board_init(void)
 	dm644x_init_asp(&snd_data);
 	davinci_setup_usb(500, 8);
 	davinci_setup_mmc(0, &mmc_config);
+
+	soc_info->emac_pdata->phy_mask = 2;
+	soc_info->emac_pdata->mdio_max_freq = 2200000;
 }
 
 static __init void irq_init(void)
