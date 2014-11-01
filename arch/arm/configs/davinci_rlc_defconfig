@@ -1,7 +1,7 @@
 #
 # Automatically generated make config: don't edit
 # Linux kernel version: 2.6.32-rc6
-# Thu Dec 12 12:43:12 2013
+# Sat Nov  1 12:13:14 2014
 #
 CONFIG_ARM=y
 CONFIG_SYS_SUPPORTS_APM_EMULATION=y
@@ -496,7 +496,7 @@ CONFIG_PHYLIB=y
 # CONFIG_MARVELL_PHY is not set
 # CONFIG_DAVICOM_PHY is not set
 # CONFIG_QSEMI_PHY is not set
-# CONFIG_LXT_PHY is not set
+CONFIG_LXT_PHY=y
 # CONFIG_CICADA_PHY is not set
 # CONFIG_VITESSE_PHY is not set
 # CONFIG_SMSC_PHY is not set
