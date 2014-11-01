@@ -221,7 +221,8 @@ static int mmc_get_ro(int module)
 static struct davinci_mmc_config mmc_config = {
 	.get_cd		= mmc_get_cd,
 	.get_ro		= mmc_get_ro,
-	.wires		= 4
+	.wires		= 4,
+	.version	= MMC_CTLR_VERSION_1
 };
 
 static struct davinci_uart_config uart_config __initdata = {
