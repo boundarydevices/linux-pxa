@@ -53,7 +53,7 @@
 #define MII_LXT971_IER_IEN	0x00f2
 
 #define MII_LXT971_ISR		19  /* Interrupt Status Register */
-
+#define MII_LXT971_LED_CFG	20  /* LED configuration Register */
 
 MODULE_DESCRIPTION("Intel LXT PHY driver");
 MODULE_AUTHOR("Andy Fleming");
@@ -94,6 +94,20 @@ static int lxt970_config_init(struct phy_device *phydev)
 
 	err = phy_write(phydev, MII_LXT970_CONFIG, 0);
 
+	return err;
+}
+
+
+static int lxt971_config_init(struct phy_device *phydev)
+{
+	int err;
+
+	/*
+	 * LED1 - (0xc) "Display Link and Receive Status combined"
+	 * LED2 - (1) "Display Transmit Status"
+	 * LED3 - (0xf) "unused"
+	 */
+	err = phy_write(phydev, MII_LXT971_LED_CFG, 0xC1F2);
 	return err;
 }
 
@@ -140,6 +154,7 @@ static struct phy_driver lxt971_driver = {
 	.phy_id_mask	= 0xfffffff0,
 	.features	= PHY_BASIC_FEATURES,
 	.flags		= PHY_HAS_INTERRUPT,
+	.config_init	= lxt971_config_init,
 	.config_aneg	= genphy_config_aneg,
 	.read_status	= genphy_read_status,
 	.ack_interrupt	= lxt971_ack_interrupt,
